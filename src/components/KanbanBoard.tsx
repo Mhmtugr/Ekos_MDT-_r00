@@ -34,7 +34,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     { id: 'YENI', title: '1. Yeni Talep', color: 'border-slate-300' },
     { id: 'TASARIMDA', title: '2. Tasarımda', color: 'border-blue-500' },
     { id: 'MEKANIK_ONAYDA', title: '3. Mekanik Onayda', color: 'border-amber-500' },
-    { id: 'MEHMET_ONAYINDA', title: '4. Mehmet Uğur Onayında', color: 'border-amber-600' },
+    { id: 'MEHMET_ONAYINDA', title: '4. Yönetici Onayında', color: 'border-amber-600' },
     { id: 'UST_ONAYDA', title: '5. Üst Onayda', color: 'border-purple-600' },
     { id: 'MUSTERI_ONAYINDA', title: '6. Müşteri Onayında', color: 'border-indigo-500' },
     { id: 'REVIZYON_ISTENDI', title: '7. Revizyon İstendi', color: 'border-rose-500' },
@@ -256,15 +256,27 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                           </div>
                         </div>
 
-                        {/* Mechanical Tag Notice */}
-                        <div className="pl-1.5 mb-2">
-                          {m.hasMechanicalEffect ? (
-                            <span className="text-[9px] bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
-                              Mekanik Etkisi Var
+                        {/* Process Type Badge & Mechanical Tag */}
+                        <div className="pl-1.5 mb-2 flex flex-wrap gap-1">
+                          {m.currentStatus === 'UST_ONAYDA' ? (
+                            <span className="text-[9px] bg-purple-50 text-purple-900 border border-purple-200 px-1.5 py-0.5 rounded font-bold">
+                              {m.reason?.toLowerCase().includes('yasin') || m.reason?.toLowerCase().includes('genel müdür')
+                                ? 'Stratejik Onay'
+                                : 'Ar-Ge Riskli Onay'}
                             </span>
                           ) : (
-                            <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">
-                              Mekanik Talep Yok
+                            <span className="text-[9px] bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 rounded font-bold">
+                              Standart Revizyon
+                            </span>
+                          )}
+
+                          {m.hasMechanicalEffect ? (
+                            <span className="text-[9px] bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200 font-semibold">
+                              Mekanik Etkili
+                            </span>
+                          ) : (
+                            <span className="text-[9px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">
+                              Sadece Elektrik
                             </span>
                           )}
                         </div>

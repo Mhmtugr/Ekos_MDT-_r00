@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Shield, Eye, Lock, User as UserIcon, ArrowRight, AlertCircle, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Lock, User as UserIcon, ArrowRight, AlertCircle } from 'lucide-react';
 import { User } from '../types';
+import { apiService } from '../services/apiService';
 
 interface LoginProps {
   users: User[];
@@ -11,47 +12,43 @@ interface LoginProps {
 export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setLoading(true);
 
-    const cleanUser = username.trim().toLowerCase();
-    const foundUser = users.find(
-      (u) =>
-        (u.username && u.username.toLowerCase() === cleanUser) ||
-        u.email.toLowerCase() === cleanUser ||
-        u.name.toLowerCase() === cleanUser
-    );
-
-    if (!foundUser) {
-      setError('Girdiğiniz kullanıcı adı veya e-posta adresi sistemde bulunamadı.');
-      return;
+    try {
+      const { user } = await apiService.login(username.trim(), password.trim());
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message || 'Giriş yapılamadı.');
+    } finally {
+      setLoading(false);
     }
-
-    if (!foundUser.active) {
-      setError('Bu kullanıcı hesabı pasife alınmıştır. Yönetici ile iletişime geçiniz.');
-      return;
-    }
-
-    // Check password if set, default accepts '123'
-    if (foundUser.password && foundUser.password !== password.trim()) {
-      setError('Girdiğiniz şifre hatalı! (Varsayılan şifre: 123)');
-      return;
-    }
-
-    onLogin(foundUser);
   };
 
-  const handleQuickSelect = (user: User) => {
-    setUsername(user.username || user.email);
-    setPassword(user.password || '123');
+  const handleQuickSelect = async (u: User) => {
+    const un = u.username || u.email;
+    const pw = u.password || '123';
+    setUsername(un);
+    setPassword(pw);
     setError(null);
-    onLogin(user);
+    setLoading(true);
+
+    try {
+      const { user } = await apiService.login(un, pw);
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message || 'Giriş yapılamadı.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Featured sample users for quick demo selection
   const quickUsers = [
     users.find((u) => u.id === 'u1'), // Mehmet Uğur (Admin)
     users.find((u) => u.id === 'u2'), // Halil Kerçin (Elektrik)
@@ -67,17 +64,21 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
           <div className="absolute inset-0 bg-[#D32F2F]/10 backdrop-blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col items-center">
             {/* EKOS Brand Logo */}
-            <div className="flex items-center space-x-2.5 mb-2">
-              <div className="bg-[#D32F2F] text-white px-2.5 py-1 rounded font-black text-sm tracking-wider uppercase shadow-md">
-                EKOS
+            <div className="flex flex-col items-center justify-center mb-4">
+              <div className="flex items-center space-x-3">
+                <svg viewBox="0 0 34 40" className="h-9 shrink-0 drop-shadow-sm" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M 20 2 C 0 12 0 28 20 38 C 9 28 9 12 20 2 Z" fill="#D32F2F" />
+                  <path d="M 27 9 C 14 15 14 25 27 31 C 20 25 20 15 27 9 Z" fill="#D32F2F" />
+                  <path d="M 32 14 C 25 16 25 24 32 26 Z" fill="#54585A" />
+                </svg>
+                <div className="flex items-center font-sans tracking-tight">
+                  <span className="text-[#D32F2F] font-black text-4xl drop-shadow-sm" style={{ letterSpacing: '-0.03em' }}>EKOS</span>
+                  <div className="w-[1.5px] h-7 bg-[#D32F2F] mx-2 opacity-90 drop-shadow-sm"></div>
+                  <span className="text-slate-300 font-light text-4xl drop-shadow-sm" style={{ letterSpacing: '-0.03em' }}>electric</span>
+                </div>
               </div>
-              <div className="text-left">
-                <div className="text-sm font-bold tracking-tight text-white leading-tight">
-                  MDT Sistemi
-                </div>
-                <div className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">
-                  Mühendislik & Design Portal
-                </div>
+              <div className="mt-4 text-xs font-bold text-slate-300 tracking-[0.2em] uppercase drop-shadow-md">
+                Mühendislik & Design Portal
               </div>
             </div>
             <p className="text-xs text-slate-300 max-w-xs mt-1">
@@ -99,6 +100,7 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                 <span>Kullanıcı Adı veya E-posta</span>
+                <span className="text-[10px] text-slate-400 font-normal">ör. mehmet.ugur</span>
               </label>
               <div className="relative">
                 <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -106,7 +108,7 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="ör. mehmet.ugur"
+                  placeholder="ör. mehmet.ugur veya e-posta"
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-hidden focus:border-[#D32F2F] focus:bg-white transition"
                   required
                 />
@@ -116,26 +118,37 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                 <span>Şifre</span>
-                <span className="text-[10px] text-slate-400 font-normal">Varsayılan: 123</span>
+                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Varsayılan: 123
+                </span>
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:border-[#D32F2F] focus:bg-white transition"
+                  className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:border-[#D32F2F] focus:bg-white transition font-mono"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                  title={showPassword ? 'Şifreyi Gizle' : 'Şifreyi Göster'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-[#D32F2F] hover:bg-red-700 text-white font-bold rounded-lg text-xs transition shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+              disabled={loading}
+              className="w-full py-2.5 bg-[#D32F2F] hover:bg-red-700 text-white font-bold rounded-lg text-xs transition shadow-md flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
             >
-              <span>Sisteme Giriş Yap</span>
+              <span>{loading ? 'Giriş Yapılıyor...' : 'Sisteme Giriş Yap'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -158,10 +171,6 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
             <span>Misafir Modu İle Giriş Yap (Sadece Gözlem)</span>
           </button>
 
-          <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-            * Misafir modu ile giriş yaptığınızda sistemdeki tüm projeleri ve MDT durumlarını izleyebilirsiniz. Değişiklik yapmak yetki gerektirir.
-          </p>
-
           {/* Quick Demo Switcher Pills */}
           <div className="pt-3 border-t border-slate-100">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
@@ -183,7 +192,9 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
                   </div>
                   <div className="truncate">
                     <div className="text-[11px] font-bold text-slate-800 truncate">{u.name}</div>
-                    <div className="text-[9px] text-slate-500 truncate">{u.title}</div>
+                    <div className="text-[9px] text-slate-500 truncate">
+                      {u.username || u.email.split('@')[0]}
+                    </div>
                   </div>
                 </button>
               ))}

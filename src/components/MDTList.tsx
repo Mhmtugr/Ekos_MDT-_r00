@@ -148,7 +148,7 @@ export const MDTList: React.FC<MDTListProps> = ({
       case 'MEKANIK_ONAYDA':
         return <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[10px] font-semibold">3. Mekanik Onayda</span>;
       case 'MEHMET_ONAYINDA':
-        return <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px] font-bold">4. Mehmet Uğur Onayında</span>;
+        return <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px] font-bold">4. Yönetici Onayında</span>;
       case 'UST_ONAYDA':
         return <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded text-[10px] font-semibold">5. Üst Onayda</span>;
       case 'MUSTERI_ONAYINDA':
@@ -187,14 +187,7 @@ export const MDTList: React.FC<MDTListProps> = ({
               <span>Dışa Aktar (Excel)</span>
             </button>
 
-            <button
-              onClick={() => onOpenNewMDT(true)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-xs font-semibold transition"
-              title="Geçmiş 2024-2025 projesini doğrudan kapalı kaydet"
-            >
-              <History className="w-3.5 h-3.5" />
-              <span>Geçmişe Dönük Kayıt Ekle</span>
-            </button>
+            
 
             <button
               onClick={() => onOpenNewMDT(false)}
@@ -239,7 +232,7 @@ export const MDTList: React.FC<MDTListProps> = ({
               <option value="YENI">1. Yeni Talep</option>
               <option value="TASARIMDA">2. Tasarımda</option>
               <option value="MEKANIK_ONAYDA">3. Mekanik Onayda</option>
-              <option value="MEHMET_ONAYINDA">4. Mehmet Uğur Onayında</option>
+              <option value="MEHMET_ONAYINDA">4. Yönetici Onayında</option>
               <option value="UST_ONAYDA">5. Üst Onayda</option>
               <option value="MUSTERI_ONAYINDA">6. Müşteri Onayında</option>
               <option value="REVIZYON_ISTENDI">7. Revizyon İstendi</option>

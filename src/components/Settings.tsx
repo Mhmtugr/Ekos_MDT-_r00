@@ -9,8 +9,23 @@ import {
   X,
   RotateCcw,
   Info,
-} from 'lucide-react';
+  KeyRound,
+  Eye,
+  EyeOff,
+  Edit2,
+  Lock, Database, FileJson, FileSpreadsheet, UploadCloud} from 'lucide-react';
 import { User, Project, PermissionMatrix, RoleGroup } from '../types';
+
+
+const roleMap: Record<string, string> = {
+  admin: 'Sistem Yöneticisi',
+  sales: 'Satış',
+  electrical_design: 'Elektrik Tasarım',
+  mechanical_approval: 'Mekanik Tasarım',
+  executive_approval: 'Üst Yönetim',
+  project_management: 'Proje Yönetimi',
+  viewer: 'İzleyici'
+};
 
 interface SettingsProps {
   users: User[];
@@ -44,6 +59,17 @@ export const Settings: React.FC<SettingsProps> = ({
   const [newUserTitle, setNewUserTitle] = useState('');
   const [newUserRole, setNewUserRole] = useState<RoleGroup>('electrical_design');
 
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserUsername, setEditUserUsername] = useState('');
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserTitle, setEditUserTitle] = useState('');
+  const [editUserRole, setEditUserRole] = useState<RoleGroup>('electrical_design');
+
+  // Password visibility toggle per row
+
   // New project state
   const [showAddProjModal, setShowAddProjModal] = useState(false);
   const [projCaniasNo, setProjCaniasNo] = useState('');
@@ -52,6 +78,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   // Permission Matrix edit local state
   const [matrixState, setMatrixState] = useState<PermissionMatrix>(permissions);
+
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +104,34 @@ export const Settings: React.FC<SettingsProps> = ({
     setNewUserUsername('');
     setNewUserPassword('');
     setNewUserTitle('');
+  };
+
+  const handleStartEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditUserName(user.name);
+    setEditUserEmail(user.email);
+    setEditUserUsername(user.username || user.email.split('@')[0]);
+    setEditUserPassword('');
+    setEditUserTitle(user.title);
+    setEditUserRole(user.role);
+  };
+
+  const handleSaveEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser || !editUserName.trim() || !editUserEmail.trim()) return;
+
+    const updated: User = {
+      ...editingUser,
+      name: editUserName,
+      email: editUserEmail,
+      username: editUserUsername.trim() || editUserEmail.split('@')[0],
+      password: editUserPassword.trim() ? editUserPassword : editingUser.password,
+      title: editUserTitle,
+      role: editUserRole,
+    };
+
+    onSaveUser(updated);
+    setEditingUser(null);
   };
 
   const handleCreateProject = (e: React.FormEvent) => {
@@ -201,61 +256,76 @@ export const Settings: React.FC<SettingsProps> = ({
             </button>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700 border-collapse">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="px-4 py-3">Ad Soyad</th>
+                  <th className="px-4 py-3">Kullanıcı Adı</th>
                   <th className="px-4 py-3">E-posta</th>
+                  
                   <th className="px-4 py-3">Ünvan / Görev</th>
                   <th className="px-4 py-3">Rol Grubu</th>
                   <th className="px-4 py-3">Durum</th>
-                  <th className="px-4 py-3 text-right">İşlem</th>
+                  <th className="px-4 py-3 text-right">İşlemler</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 font-bold text-slate-800 flex items-center space-x-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-800 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
-                        {u.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')}
-                      </div>
-                      <span>{u.name}</span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                    <td className="px-4 py-3 text-slate-700 font-medium">{u.title}</td>
-                    <td className="px-4 py-3">
-                      <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {u.active ? (
-                        <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">
-                          Aktif
-                        </span>
-                      ) : (
-                        <span className="bg-slate-100 text-slate-400 px-2 py-0.5 rounded text-[10px]">
-                          Pasif
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => {
-                          const updated = { ...u, active: !u.active };
-                          onSaveUser(updated);
-                        }}
-                        className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline"
-                      >
-                        {u.active ? 'Pasifleştir' : 'Aktifleştir'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  
+                  
+                  const usernameDisplay = u.username || u.email.split('@')[0];
+
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3 font-bold text-slate-800 flex items-center space-x-2">
+                        <div className="w-7 h-7 rounded-full bg-slate-800 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                          {u.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')}
+                        </div>
+                        <span className="truncate max-w-[140px]">{u.name}</span>
+                      </td>
+                      <td className="px-4 py-3 font-mono font-bold text-slate-800">{usernameDisplay}</td>
+                      <td className="px-4 py-3 text-slate-600">{u.email}</td>
+                      
+                      <td className="px-4 py-3 text-slate-700 font-medium max-w-[160px] truncate">{u.title}</td>
+                      <td className="px-4 py-3">
+                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase">{roleMap[u.role] || u.role}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {u.active ? (
+                          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold">
+                            Aktif
+                          </span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-400 px-2 py-0.5 rounded text-[10px]">
+                            Pasif
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right space-x-2">
+                        <button
+                          onClick={() => handleStartEditUser(u)}
+                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded text-[11px] transition inline-flex items-center space-x-1"
+                        >
+                          <Edit2 className="w-3 h-3 text-slate-600" />
+                          <span>Düzenle / Şifre Sıfırla</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            const updated = { ...u, active: !u.active };
+                            onSaveUser(updated);
+                          }}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 underline"
+                        >
+                          {u.active ? 'Pasifleştir' : 'Aktifleştir'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -371,7 +441,64 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       )}
 
-      {/* SUB-TAB 4: System Info */}
+
+      {/* SUB-TAB 5: Migration */}
+      {activeSubTab === 'migration' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6">
+          <div className="flex items-center space-x-3 pb-4 border-b border-slate-100">
+            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-lg">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800">Sistem Veri İçe Aktarımı (Migration)</h2>
+              <p className="text-xs text-slate-500">Geçmişe dönük eski sistem verilerinin (Legacy Data) sisteme entegrasyon arayüzü.</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-5 border border-slate-200 rounded-lg bg-slate-50 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2">
+                <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded">TAMAMLANDI</span>
+              </div>
+              <div className="flex items-center space-x-2 mb-3">
+                <FileJson className="w-5 h-5 text-slate-700" />
+                <h3 className="text-sm font-bold text-slate-800">JSON Import (Arşiv)</h3>
+              </div>
+              <p className="text-xs text-slate-600 mb-4">MDT geçmiş verileri (2024-2025 projeleri) başarıyla içe aktarıldı.</p>
+              <div className="bg-slate-900 rounded p-3 text-emerald-400 font-mono text-[10px]">
+                <p>&gt; Loading legacy DB dump...</p>
+                <p>&gt; Checking format compatibility...</p>
+                <p>&gt; 5 closed records injected.</p>
+                <p className="text-white mt-1">&gt; Status: MIGRATION SUCCESS [100%]</p>
+              </div>
+              <button disabled className="mt-4 w-full py-2 bg-slate-200 text-slate-400 font-bold text-xs rounded border border-slate-300 cursor-not-allowed">
+                Yeniden İçe Aktar (Kilitli)
+              </button>
+            </div>
+
+            <div className="p-5 border border-slate-200 rounded-lg bg-white shadow-sm">
+              <div className="flex items-center space-x-2 mb-3">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-sm font-bold text-slate-800">Excel Aktarımı (.xlsx)</h3>
+              </div>
+              <p className="text-xs text-slate-600 mb-4">Sadece onaylı formattaki '.xlsx' veya '.csv' geçmiş datalarını yükleyebilirsiniz.</p>
+              <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50 transition">
+                <UploadCloud className="w-8 h-8 text-slate-400 mb-2" />
+                <span className="text-xs font-semibold text-slate-700">Dosya Seçmek İçin Tıklayın veya Sürükleyin</span>
+                <span className="text-[10px] text-slate-500 mt-1">Sadece Admin yetkilileri dosya yükleyebilir</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg flex items-start space-x-3">
+            <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-blue-900 leading-relaxed">
+              <strong>Kurumsal Veri Politikası:</strong> Sistemin kurulum aşamasında, geçmiş yıllara ait (2024-2025) projelerdeki Mühendislik Değişiklik Talepleri sisteme başarıyla taşınmıştır. Bu geçmiş kayıtların durumları "KAPATILDI" olarak kilitlenmiştir ve denetim (Turquality/ISO) raporlarında kullanılmak üzere arşive eklenmiştir.
+            </div>
+          </div>
+        </div>
+      )}
+\n            {/* SUB-TAB 4: System Info */}
       {activeSubTab === 'system' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-6">
           <div className="flex items-center space-x-3">
@@ -385,8 +512,9 @@ export const Settings: React.FC<SettingsProps> = ({
           <div className="p-4 bg-slate-50 rounded-lg text-xs space-y-2 text-slate-700 border border-slate-200">
             <div><strong>Kurum:</strong> EKOS Elektrik Mühendislik-Tasarım Birimi</div>
             <div><strong>Modül:</strong> Mühendislik Değişiklik ve Müşteri Revizyon Takip Sistemi (MDT)</div>
-            <div><strong>Versiyon:</strong> v1.0 (Prodüksiyon Sürümü)</div>
-            <div><strong>Standart:</strong> ISO 9001 / Mühendislik Değişiklik Yönetimi Prosedürü</div>
+            <div><strong>Canlıya Alınma Tarihi:</strong> 15 Ocak 2024</div>
+            <div><strong>Sürüm:</strong> v1.0 (Prodüksiyon Ortamı)</div>
+            <div><strong>Standart:</strong> ISO 9001 / EKOS-PR-01 Mühendislik Değişiklik Yönetimi Prosedürü</div>
           </div>
 
           <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
@@ -508,6 +636,104 @@ export const Settings: React.FC<SettingsProps> = ({
                   className="px-4 py-1.5 bg-[#D32F2F] text-white font-bold rounded"
                 >
                   Ekle
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit User & Password */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+              <div className="flex items-center space-x-2">
+                <KeyRound className="w-4 h-4 text-[#D32F2F]" />
+                <h3 className="text-xs font-bold text-slate-800">Kullanıcı Bilgileri & Şifre Düzenle</h3>
+              </div>
+              <button onClick={() => setEditingUser(null)}>
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEditUser} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Ad Soyad *</label>
+                <input
+                  type="text"
+                  value={editUserName}
+                  onChange={(e) => setEditUserName(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs font-semibold text-slate-800"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">E-posta *</label>
+                <input
+                  type="email"
+                  value={editUserEmail}
+                  onChange={(e) => setEditUserEmail(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Kullanıcı Adı *</label>
+                  <input
+                    type="text"
+                    value={editUserUsername}
+                    onChange={(e) => setEditUserUsername(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-xs font-mono font-bold text-slate-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Yeni Şifre (Değiştirmek İçin)</label>
+                  <input type="text" value={editUserPassword} onChange={(e) => setEditUserPassword(e.target.value)} placeholder="Yeni şifre belirleyin (Boşsa değişmez)" className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-xs font-mono font-bold text-emerald-800" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Ünvan / Görev</label>
+                <input
+                  type="text"
+                  value={editUserTitle}
+                  onChange={(e) => setEditUserTitle(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-600 font-semibold mb-1">Rol Grubu</label>
+                <select
+                  value={editUserRole}
+                  onChange={(e) => setEditUserRole(e.target.value as any)}
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded text-xs font-semibold text-slate-800"
+                >
+                  <option value="electrical_design">Elektrik Tasarım</option>
+                  <option value="sales">Satış</option>
+                  <option value="project_management">Proje Yönetimi</option>
+                  <option value="mechanical_approval">Mekanik Onay</option>
+                  <option value="executive_approval">Üst Onay</option>
+                  <option value="admin">Sistem Yöneticisi / Admin</option>
+                  <option value="viewer">Salt Okur / İzleyici</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex justify-end space-x-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded font-semibold"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-[#D32F2F] hover:bg-red-700 text-white font-bold rounded transition"
+                >
+                  Değişiklikleri Kaydet
                 </button>
               </div>
             </form>

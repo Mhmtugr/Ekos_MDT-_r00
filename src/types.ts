@@ -33,7 +33,7 @@ export type MDTStatus =
   | 'YENI'               // 1. Yeni Talep (satış açtı, atanmadı)
   | 'TASARIMDA'          // 2. Tasarımda (elektrik tasarım)
   | 'MEKANIK_ONAYDA'     // 3. Mekanik Onayda (Erhan Gürbüz)
-  | 'MEHMET_ONAYINDA'    // 4. Mehmet Uğur Onayında
+  | 'MEHMET_ONAYINDA'    // 4. Yönetici Onayında
   | 'UST_ONAYDA'         // 5. Üst Onayda (Tamer / Yasin)
   | 'MUSTERI_ONAYINDA'   // 6. Müşteri Onayında
   | 'REVIZYON_ISTENDI'   // 7. Revizyon İstendi
@@ -117,6 +117,7 @@ export interface MDTRequest {
   files: MDTFile[];
   
   parentMdtId?: string; // Connection to previous revision
+  version?: number; // Optimistic locking version
 }
 
 export interface AuditLog {
@@ -129,6 +130,8 @@ export interface AuditLog {
   oldValue?: string;
   newValue?: string;
   timestamp: string;
+  prevHash?: string;
+  hash?: string;
 }
 
 export interface NotificationItem {

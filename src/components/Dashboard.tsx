@@ -99,7 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       case 'MEKANIK_ONAYDA':
         return <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-[10px] font-semibold">Mekanik Onayda</span>;
       case 'MEHMET_ONAYINDA':
-        return <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold">Mehmet Uğur Onayında</span>;
+        return <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold">Yönetici Onayında</span>;
       case 'UST_ONAYDA':
         return <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded text-[10px] font-semibold">Üst Onayda</span>;
       case 'MUSTERI_ONAYINDA':

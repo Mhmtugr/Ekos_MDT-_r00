@@ -92,7 +92,7 @@ export const NewMDTModal: React.FC<NewMDTModalProps> = ({
       clientSpecialRequest,
       reason,
       openedById: currentUser.id,
-      assignedToId,
+      assignedToId: currentUser.role === 'admin' ? assignedToId : undefined,
       currentStatus: isRetroactive ? 'KAPATILDI' : 'TASARIMDA',
       createdAt: isRetroactive ? `${retroYear}-01-15T09:00:00Z` : new Date().toISOString(),
       targetDate: isRetroactive
@@ -103,9 +103,9 @@ export const NewMDTModal: React.FC<NewMDTModalProps> = ({
       year: isRetroactive ? retroYear : 2026,
       revisionNumber: 'Rev.00',
       technicalDocs: {
-        drawnById: assignedToId,
+        drawnById: currentUser.role === 'admin' ? assignedToId : undefined,
         checkedElectricalById: 'u1',
-        checkedMechanicalById: hasMechanicalEffect ? assignedMechanicalId : undefined,
+        checkedMechanicalById: (currentUser.role === 'admin' && hasMechanicalEffect) ? assignedMechanicalId : undefined,
         secondaryProjectClientApproved: isRetroactive ? 'ONAYLANDI' : 'BEKLIYOR',
       },
       approvals: [],
@@ -398,6 +398,7 @@ export const NewMDTModal: React.FC<NewMDTModalProps> = ({
               </div>
 
               {/* Assigned Engineer Assignment Section */}
+              {currentUser.role === 'admin' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 {/* Electrical Engineer */}
                 <div>
@@ -444,6 +445,7 @@ export const NewMDTModal: React.FC<NewMDTModalProps> = ({
                   </div>
                 )}
               </div>
+              )}
             </>
           ) : (
             /* Non-engineering simplified route info */

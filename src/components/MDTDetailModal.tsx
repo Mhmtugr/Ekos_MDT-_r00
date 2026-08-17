@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { MDTRequest, Project, User, ApprovalRecord } from '../types';
+import { apiService } from '../services/apiService';
 
 interface MDTDetailModalProps {
   mdt: MDTRequest;
@@ -63,25 +64,19 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
   };
 
   // Add Comment
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!commentText.trim()) return;
-    const newComment = {
-      id: 'c-' + Date.now(),
-      userId: currentUser.id,
-      userName: currentUser.name,
-      text: commentText,
-      createdAt: new Date().toISOString(),
-    };
-    const updatedMDT = {
-      ...mdt,
-      comments: [...mdt.comments, newComment],
-    };
-    onUpdateMDT(updatedMDT, `Yorum eklendi: "${commentText.slice(0, 30)}..."`);
-    setCommentText('');
+    try {
+      const updated = await apiService.addComment(mdt.id, commentText);
+      onUpdateMDT(updated, `Yorum eklendi: "${commentText.slice(0, 30)}..."`);
+      setCommentText('');
+    } catch (err: any) {
+      alert(err.message || 'Yorum eklenemedi.');
+    }
   };
 
   // Save Technical Docs Info
-  const handleSaveTechDocs = () => {
+  const handleSaveTechDocs = async () => {
     const updatedDocs = {
       ...mdt.technicalDocs,
       secondaryProjectNo: secNo,
@@ -89,109 +84,143 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
       secondaryProjectClientApproved: secStatus,
       drawnById: mdt.technicalDocs.drawnById || currentUser.id,
     };
-    const updated = {
-      ...mdt,
-      technicalDocs: updatedDocs,
-    };
-    onUpdateMDT(updated, 'Teknik doküman takip bilgileri güncellendi.');
+    try {
+      const updated = await apiService.updateMDT(mdt.id, {
+        version: mdt.version,
+        technicalDocs: updatedDocs,
+      });
+      onUpdateMDT(updated, 'Teknik doküman takip bilgileri güncellendi.');
+    } catch (err: any) {
+      alert(err.message || 'Güncelleme başarısız.');
+    }
   };
 
   // Approval Action Execution
-  const handleExecuteAction = (
+  const handleExecuteAction = async (
     newStatus: MDTRequest['currentStatus'],
     actionType: 'ONAY' | 'RED' | 'REVIZYON',
     actionLabel: string,
     additionalAssigneeId?: string
   ) => {
-    const newApproval: ApprovalRecord = {
-      id: 'app-' + Date.now(),
-      type:
-        currentUser.role === 'mechanical_approval'
-          ? 'MEKANIK'
-          : currentUser.role === 'executive_approval'
-          ? 'UST'
-          : 'ELEKTRIK',
-      requesterId: mdt.assignedToId || currentUser.id,
-      approverId: currentUser.id,
-      approverName: currentUser.name,
-      decision: actionType,
-      reason: actionReason || 'Aksiyon tamamlandı.',
-      date: new Date().toISOString(),
-    };
+    const approvalType =
+      currentUser.role === 'mechanical_approval'
+        ? 'MEKANIK'
+        : currentUser.role === 'executive_approval'
+        ? 'UST'
+        : 'ELEKTRIK';
 
-    let updatedMdt: MDTRequest = {
-      ...mdt,
-      currentStatus: newStatus,
-      approvals: [...mdt.approvals, newApproval],
-      assignedToId: additionalAssigneeId || mdt.assignedToId,
-    };
+    try {
+      // First add approval record
+      await apiService.addApproval(mdt.id, approvalType, actionType, actionReason || 'Aksiyon tamamlandı.');
 
-    if (newStatus === 'KAPATILDI') {
-      updatedMdt.closedAt = new Date().toISOString();
+      // Second update status via server state machine
+      const updated = await apiService.updateMDTStatus(mdt.id, newStatus, {
+        reason: actionReason || 'Aksiyon tamamlandı.',
+        closureNote: newStatus === 'KAPATILDI' ? (actionReason || 'Talep kapatıldı.') : undefined,
+        rejectionReason: newStatus === 'REDDEDILDI' || newStatus === 'REVIZYON_ISTENDI' ? (actionReason || 'Reddedildi / Revizyon istendi.') : undefined,
+        expectedVersion: mdt.version,
+      });
+
+      if (additionalAssigneeId) {
+        await apiService.updateMDT(mdt.id, {
+          version: updated.version,
+          assignedToId: additionalAssigneeId,
+        });
+      }
+
+      onUpdateMDT(
+        updated,
+        `Talep '${actionLabel}' işlemi ile ${newStatus} statüsüne alındı.`
+      );
+      setActionReason('');
+      setShowReasonInput(null);
+    } catch (err: any) {
+      alert(err.message || 'İşlem gerçekleştirilemedi.');
     }
-
-    onUpdateMDT(
-      updatedMdt,
-      `Talep '${actionLabel}' işlemi ile ${newStatus} statüsüne alındı.`
-    );
-    setActionReason('');
-    setShowReasonInput(null);
   };
 
   // Mechanical Approval trigger by Design Engineer
-  const handleRequestMechanical = () => {
-    const updated = {
-      ...mdt,
-      currentStatus: 'MEKANIK_ONAYDA' as const,
-      hasMechanicalEffect: true,
-      assignedToId: mdt.technicalDocs.checkedMechanicalById || 'u17', // Erhan Gürbüz default
-    };
-    onUpdateMDT(
-      updated,
-      'Mühendislik Birimi tarafından Mekanik Tasarım Etkisi tanımlandı ve talep Mekanik Tasarıma yönlendirildi (Erhan Gürbüz).'
-    );
+  const handleRequestMechanical = async () => {
+    try {
+      const updated = await apiService.updateMDTStatus(mdt.id, 'MEKANIK_ONAYDA', {
+        reason: 'Mekanik tasarım kontrolü istendi.',
+        expectedVersion: mdt.version,
+      });
+      await apiService.updateMDT(mdt.id, {
+        version: updated.version,
+        hasMechanicalEffect: true,
+        assignedToId: mdt.technicalDocs.checkedMechanicalById || 'u17',
+      });
+      onUpdateMDT(
+        updated,
+        'Mühendislik Birimi tarafından Mekanik Tasarım Etkisi tanımlandı ve talep Mekanik Tasarıma yönlendirildi (Erhan Gürbüz).'
+      );
+    } catch (err: any) {
+      alert(err.message || 'İşlem gerçekleştirilemedi.');
+    }
   };
 
   // Send to Mehmet Uğur
-  const handleSendToMehmet = () => {
-    const updated = {
-      ...mdt,
-      currentStatus: 'MEHMET_ONAYINDA' as const,
-      assignedToId: 'u1', // Mehmet Uğur
-    };
-    onUpdateMDT(updated, 'Talep Mehmet Uğur onayına gönderildi.');
+  const handleSendToMehmet = async () => {
+    try {
+      const updated = await apiService.updateMDTStatus(mdt.id, 'MEHMET_ONAYINDA', {
+        reason: 'Mehmet Uğur onayına gönderildi.',
+        expectedVersion: mdt.version,
+      });
+      await apiService.updateMDT(mdt.id, {
+        version: updated.version,
+        assignedToId: 'u1',
+      });
+      onUpdateMDT(updated, 'Talep Mehmet Uğur onayına gönderildi.');
+    } catch (err: any) {
+      alert(err.message || 'İşlem gerçekleştirilemedi.');
+    }
   };
 
   // Send to Executive Approval (Tamer / Yasin)
-  const handleSendToExecutive = () => {
-    const execUser = users.find((u) => u.id === selectedExecutive);
-    const updated = {
-      ...mdt,
-      currentStatus: 'UST_ONAYDA' as const,
-      assignedToId: selectedExecutive,
-    };
-    onUpdateMDT(
-      updated,
-      `Üst Onay Talebi açıldı (${execUser?.name || 'Üst Yönetim'} atandı).`
-    );
-    setShowReasonInput(null);
+  const handleSendToExecutive = async () => {
+    try {
+      const execUser = users.find((u) => u.id === selectedExecutive);
+      const updated = await apiService.updateMDTStatus(mdt.id, 'UST_ONAYDA', {
+        reason: `Üst Onay Talebi açıldı (${execUser?.name || 'Üst Yönetim'} atandı).`,
+        expectedVersion: mdt.version,
+      });
+      await apiService.updateMDT(mdt.id, {
+        version: updated.version,
+        assignedToId: selectedExecutive,
+      });
+      onUpdateMDT(
+        updated,
+        `Üst Onay Talebi açıldı (${execUser?.name || 'Üst Yönetim'} atandı).`
+      );
+      setShowReasonInput(null);
+    } catch (err: any) {
+      alert(err.message || 'İşlem gerçekleştirilemedi.');
+    }
   };
 
   // Client Revision Request -> Creates Rev.01 / Rev.02
-  const handleCreateNewRevision = () => {
+  const handleCreateNewRevision = async () => {
     const nextRevNum = `Rev.0${
       parseInt(mdt.revisionNumber.replace('Rev.0', ''), 10) + 1
     }`;
-    const updated = {
-      ...mdt,
-      revisionNumber: nextRevNum,
-      currentStatus: 'TASARIMDA' as const,
-      assignedToId: mdt.technicalDocs.drawnById || 'u2',
-    };
-    onUpdateMDT(
-      updated,
-      `Müşteri revizyonu sebebiyle ${nextRevNum} oluşturuldu ve Tasarım aşamasına alındı.`
-    );
+    try {
+      const updated = await apiService.updateMDTStatus(mdt.id, 'TASARIMDA', {
+        reason: 'Müşteri revizyonu açıldı.',
+        expectedVersion: mdt.version,
+      });
+      await apiService.updateMDT(mdt.id, {
+        version: updated.version,
+        revisionNumber: nextRevNum,
+        assignedToId: mdt.technicalDocs.drawnById || 'u2',
+      });
+      onUpdateMDT(
+        updated,
+        `Müşteri revizyonu sebebiyle ${nextRevNum} oluşturuldu ve Tasarım aşamasına alındı.`
+      );
+    } catch (err: any) {
+      alert(err.message || 'İşlem gerçekleştirilemedi.');
+    }
   };
 
   // Determine user permissions for action bar
@@ -290,6 +319,29 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
               </div>
               <div className="font-bold text-[#D32F2F] mt-0.5">
                 {mdt.currentStatus}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase font-bold">
+                Süreç Tipi (Turquality)
+              </div>
+              <div className="mt-0.5">
+                {mdt.currentStatus === 'UST_ONAYDA' ? (
+                  <span className="text-[10px] bg-purple-100 text-purple-900 border border-purple-300 px-2 py-0.5 rounded font-bold inline-block">
+                    {mdt.reason?.toLowerCase().includes('yasin') || mdt.reason?.toLowerCase().includes('genel müdür')
+                      ? 'Stratejik / Yüksek Bütçeli Onay'
+                      : 'Ar-Ge Riskli Onay'}
+                  </span>
+                ) : mdt.hasMechanicalEffect ? (
+                  <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold inline-block">
+                    Mekanik + Elektrik Revizyon
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-blue-100 text-blue-900 border border-blue-300 px-2 py-0.5 rounded font-bold inline-block">
+                    Standart Revizyon (1. Seviye)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -426,12 +478,41 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Turquality Prosedürü Madde 5.8: CANIAS Sunucu Klasör Yolu Köprü Linki */}
+            <div className="p-3 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <FolderSymlink className="w-5 h-5 text-red-400 shrink-0" />
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    CANIAS Sunucu Proje Klasörü Köprü Linki (Prosedür Madde 5.8)
+                  </div>
+                  <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 select-all">
+                    \\\\Server\\Proje_Dosyalari\\{project?.caniasProjeNo || '26040006'}\\REV
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const link = `\\\\Server\\Proje_Dosyalari\\${project?.caniasProjeNo || '26040006'}\\REV`;
+                  navigator.clipboard.writeText(link);
+                  setCopiedServerPath(true);
+                  setShowNetworkToast(true);
+                }}
+                className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white font-bold rounded text-xs transition flex items-center space-x-1.5 shadow-xs"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedServerPath ? 'Köprü Linki Kopyalandı' : 'Köprü Linkini Kopyala'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Section 4: Approval Flow Timeline */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-1">
-              Onay Geçmişi & Zaman Çizelgesi
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-1 flex items-center justify-between">
+              <span>Onay Geçmişi & Dijital İmza Kayıtları</span>
+              <span className="text-[10px] text-slate-400 font-mono font-normal">EKOS-FORM-05-07</span>
             </h3>
 
             {mdt.approvals.length === 0 ? (
@@ -473,6 +554,19 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 ))}
               </div>
             )}
+
+            {/* Turquality Prosedürü Bölüm 6: Doküman Saklama ve Arşivleme Mührü */}
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-[10px] text-slate-500">
+              <div className="flex items-center space-x-2">
+                <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>
+                  <strong>Turquality Kayıt Saklama Güvencesi:</strong> Tüm MDT verileri, dijital loglar ve onay geçmişi EKOS-FORM-05-07 Doküman Saklama Prosedürü uyarınca SQL veritabanında süresiz saklanmaktadır.
+                </span>
+              </div>
+              <span className="font-mono font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded shrink-0">
+                EKOS-FORM-05-07
+              </span>
+            </div>
           </div>
 
           {/* Section 5: Comments & Discussion */}
@@ -535,8 +629,8 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                   onChange={(e) => setSelectedExecutive(e.target.value)}
                   className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-semibold"
                 >
-                  <option value="u16">Tamer Özkahraman (Arge Müdürü)</option>
-                  <option value="u15">Yasin Çakar (Genel Müdür)</option>
+                  <option value="u16">Tamer Özkahraman (Ar-Ge Müdürü - 2. Seviye Teknik Onay)</option>
+                  <option value="u15">Yasin Çakar (Genel Müdür - Nihai Üst Yönetim Onayı)</option>
                 </select>
               )}
 
@@ -625,7 +719,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                     onClick={() => setShowReasonInput('UST_ONAY')}
                     className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-semibold rounded text-xs transition"
                   >
-                    Üst Onaya Gönder (Tamer / Yasin)
+                    2. Seviye / Üst Onaya Gönder (Ar-Ge / Genel Müdür)
                   </button>
                   <button
                     onClick={() => setShowReasonInput('MEHMET_ONAY')}

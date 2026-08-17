@@ -1,25 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  initStorage,
-  getCurrentUser,
-  setCurrentUser,
-  getUsers,
-  saveUser,
-  getProjects,
-  saveProject,
-  getMDTs,
-  saveMDT,
-  generateNextMDTNo,
-  getAuditLogs,
-  logAudit,
-  getNotifications,
-  markNotificationRead,
-  createNotification,
-  getPermissionMatrix,
-  savePermissionMatrix,
-  resetAllToDefault,
-} from './services/storageService';
-import {
   User,
   Project,
   MDTRequest,
@@ -27,6 +7,7 @@ import {
   NotificationItem,
   PermissionMatrix,
 } from './types';
+import { apiService } from './services/apiService';
 
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -41,17 +22,16 @@ import { UserSwitcherModal } from './components/UserSwitcherModal';
 import { Login } from './components/Login';
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [currentUser, setCurrentUserState] = useState<User>(getCurrentUser());
+  const [currentUser, setCurrentUserState] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [mdts, setMdts] = useState<MDTRequest[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [permissions, setPermissions] = useState<PermissionMatrix>(
-    getPermissionMatrix()
-  );
+  const [permissions, setPermissions] = useState<PermissionMatrix>({} as PermissionMatrix);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Search query in header
   const [globalSearchQuery, setGlobalSearchQuery] = useState<string>('');
@@ -72,196 +52,181 @@ export default function App() {
     setActiveTab(tab);
   };
 
-  // Load state on mount
+  // Check login on mount and load data
   useEffect(() => {
-    initStorage();
-    refreshAllData();
+    const init = async () => {
+      try {
+        const me = await apiService.fetchMe();
+        if (me) {
+          setCurrentUserState(me);
+          setIsLoggedIn(true);
+          await refreshAllData();
+        }
+      } catch (err) {
+        setIsLoggedIn(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
-  const refreshAllData = () => {
-    const cur = getCurrentUser();
-    setCurrentUserState(cur);
-    setUsers(getUsers());
-    setProjects(getProjects());
-    setMdts(getMDTs());
-    setAuditLogs(getAuditLogs());
-    setNotifications(getNotifications(cur.id));
-    setPermissions(getPermissionMatrix());
+  const refreshAllData = async () => {
+    try {
+      const [uList, pList, mList, aList, nList, permList] = await Promise.all([
+        apiService.getUsers().catch(() => []),
+        apiService.getProjects().catch(() => []),
+        apiService.getMDTs().catch(() => []),
+        apiService.getAuditLogs().catch(() => []),
+        apiService.getNotifications().catch(() => []),
+        apiService.getPermissions().catch(() => ({} as PermissionMatrix)),
+      ]);
+
+      setUsers(uList);
+      setProjects(pList);
+      setMdts(mList);
+      setAuditLogs(aList);
+      setNotifications(nList);
+      setPermissions(permList);
+
+      // Keep selected MDT updated if open
+      if (selectedMDT) {
+        const updatedSelected = mList.find((m) => m.id === selectedMDT.id);
+        if (updatedSelected) {
+          setSelectedMDT(updatedSelected);
+        }
+      }
+    } catch (err) {
+      console.error('Data refresh error:', err);
+    }
   };
 
   // User Switch Handler
-  const handleSelectUser = (user: User) => {
-    setCurrentUser(user);
-    setCurrentUserState(user);
-    setNotifications(getNotifications(user.id));
-  };
-
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    setCurrentUserState(user);
-    setNotifications(getNotifications(user.id));
-    setIsLoggedIn(true);
-  };
-
-  const handleGuestLogin = () => {
-    let guestUser = users.find((u) => u.role === 'viewer' || u.id === 'u-guest');
-    if (!guestUser) {
-      guestUser = {
-        id: 'u-guest',
-        name: 'Misafir İzleyici',
-        email: 'misafir@ekoselectric.com',
-        username: 'misafir',
-        password: 'guest',
-        title: 'Gözlemci / İzleyici Modu',
-        role: 'viewer',
-        active: true,
-      };
+  const handleSelectUser = async (user: User) => {
+    try {
+      const { user: loggedInUser } = await apiService.login(user.username || user.email, '123');
+      setCurrentUserState(loggedInUser);
+      await refreshAllData();
+    } catch (err) {
+      console.error('User switch error:', err);
     }
-    setCurrentUser(guestUser);
-    setCurrentUserState(guestUser);
+  };
+
+  const handleLogin = async (user: User) => {
+    setCurrentUserState(user);
     setIsLoggedIn(true);
+    await refreshAllData();
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      const { user } = await apiService.login('misafir', 'guest');
+      setCurrentUserState(user);
+      setIsLoggedIn(true);
+      await refreshAllData();
+    } catch (err) {
+      console.error('Guest login error:', err);
+    }
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('ekos_mdt_jwt_token');
+    localStorage.removeItem('ekos_mdt_current_user');
     setIsLoggedIn(false);
+    setCurrentUserState(null);
   };
 
-  // Update MDT & Log Audit
-  const handleUpdateMDT = (updatedMDT: MDTRequest, auditActionMsg: string) => {
-    saveMDT(updatedMDT);
-    logAudit(
-      currentUser,
-      auditActionMsg,
-      'MDT',
-      updatedMDT.mdtNo,
-      mdts.find((m) => m.id === updatedMDT.id)?.currentStatus,
-      updatedMDT.currentStatus
-    );
-
-    // Notify assignee if changed or status updated
-    if (updatedMDT.assignedToId && updatedMDT.assignedToId !== currentUser.id) {
-      createNotification(
-        updatedMDT.assignedToId,
-        updatedMDT.id,
-        updatedMDT.mdtNo,
-        `MDT durum güncellemesi: ${auditActionMsg}`
-      );
+  // Update MDT
+  const handleUpdateMDT = async (updatedMDT: MDTRequest) => {
+    try {
+      await apiService.updateMDT(updatedMDT.id, updatedMDT);
+      await refreshAllData();
+    } catch (err: any) {
+      alert(err.message || 'MDT güncellenemedi.');
     }
-
-    refreshAllData();
-    // Keep detail modal updated if open
-    setSelectedMDT(updatedMDT);
   };
 
   // Create New MDT
-  const handleCreateMDT = (
+  const handleCreateMDT = async (
     newMDTData: Partial<MDTRequest>,
     newProjData?: Partial<Project>
   ) => {
-    let finalProjId = newMDTData.projectId;
+    try {
+      let finalProjId = newMDTData.projectId;
 
-    if (newProjData && newProjData.id) {
-      const fullProj: Project = {
-        id: newProjData.id,
-        caniasProjeNo: newProjData.caniasProjeNo || '26040099',
-        clientName: newProjData.clientName || 'MÜŞTERİ',
-        productGroup: newProjData.productGroup || '36kV RMU',
-        serverFolderPath: newProjData.serverFolderPath || '\\\\Ekosfilesrv\\ekos\\PROJELER',
-        year: newProjData.year || 2026,
-        createdAt: new Date().toISOString().split('T')[0],
-      };
-      saveProject(fullProj);
-      finalProjId = fullProj.id;
+      if (newProjData && newProjData.caniasProjeNo) {
+        const fullProj = await apiService.saveProject({
+          id: 'p-' + Date.now(),
+          caniasProjeNo: newProjData.caniasProjeNo,
+          clientName: newProjData.clientName || 'MÜŞTERİ',
+          productGroup: newProjData.productGroup || '36kV RMU',
+          serverFolderPath: newProjData.serverFolderPath || '\\\\Ekosfilesrv\\ekos\\PROJELER',
+          year: newProjData.year || 2026,
+          createdAt: new Date().toISOString().split('T')[0],
+        });
+        finalProjId = fullProj.id;
+      }
+
+      await apiService.createMDT({
+        ...newMDTData,
+        projectId: finalProjId || projects[0]?.id || 'p1',
+      });
+
+      await refreshAllData();
+    } catch (err: any) {
+      alert(err.message || 'MDT oluşturulamadı.');
     }
-
-    const year = newMDTData.year || 2026;
-    const nextMdtNo = generateNextMDTNo(year);
-
-    const fullMDT: MDTRequest = {
-      id: 'mdt-' + Date.now(),
-      mdtNo: nextMdtNo,
-      revisionNumber: newMDTData.revisionNumber || 'Rev.00',
-      projectId: finalProjId || projects[0]?.id || 'p1',
-      title: newMDTData.title || 'Yeni MDT Talebi',
-      requestType: newMDTData.requestType || 'ELEKTRIK_MEKANIK',
-      hasMechanicalEffect: newMDTData.hasMechanicalEffect ?? true,
-      priority: newMDTData.priority || 'ORTA',
-      clientSpecialRequest: newMDTData.clientSpecialRequest || '',
-      reason: newMDTData.reason,
-      openedById: currentUser.id,
-      assignedToId: newMDTData.assignedToId || 'u2',
-      currentStatus: newMDTData.currentStatus || 'TASARIMDA',
-      createdAt: newMDTData.createdAt || new Date().toISOString(),
-      targetDate: newMDTData.targetDate || new Date(Date.now() + 7 * 86400000).toISOString(),
-      closedAt: newMDTData.closedAt,
-      isHistorical: newMDTData.isHistorical || false,
-      year: year,
-      technicalDocs: newMDTData.technicalDocs || { drawnById: newMDTData.assignedToId },
-      approvals: [],
-      comments: [],
-      files: [],
-    };
-
-    saveMDT(fullMDT);
-    logAudit(
-      currentUser,
-      `Yeni MDT Talebi oluşturuldu (${nextMdtNo})`,
-      'MDT',
-      nextMdtNo,
-      undefined,
-      fullMDT.currentStatus
-    );
-
-    if (fullMDT.assignedToId && fullMDT.assignedToId !== currentUser.id) {
-      createNotification(
-        fullMDT.assignedToId,
-        fullMDT.id,
-        fullMDT.mdtNo,
-        `Tarafınıza yeni bir MDT talebi atandı: ${fullMDT.title}`
-      );
-    }
-
-    refreshAllData();
   };
 
   // Save User (Admin)
-  const handleSaveUser = (user: User) => {
-    saveUser(user);
-    logAudit(currentUser, `Kullanıcı hesabı güncellendi/eklendi: ${user.name}`, 'KULLANICI', user.id);
-    refreshAllData();
+  const handleSaveUser = async (user: User) => {
+    try {
+      await apiService.saveUser(user);
+      await refreshAllData();
+    } catch (err: any) {
+      alert(err.message || 'Kullanıcı kaydedilemedi.');
+    }
   };
 
   // Save Project (Admin)
-  const handleSaveProject = (project: Project) => {
-    saveProject(project);
-    logAudit(currentUser, `Proje tanımı güncellendi/eklendi: ${project.caniasProjeNo}`, 'PROJE', project.id);
-    refreshAllData();
+  const handleSaveProject = async (project: Project) => {
+    try {
+      await apiService.saveProject(project);
+      await refreshAllData();
+    } catch (err: any) {
+      alert(err.message || 'Proje kaydedilemedi.');
+    }
   };
 
   // Save Permissions Matrix
-  const handleSavePermissions = (matrix: PermissionMatrix) => {
-    savePermissionMatrix(matrix);
-    logAudit(currentUser, 'Rol Bazlı Yetki Matrisi güncellendi', 'SISTEM', 'PERM-01');
-    refreshAllData();
-  };
-
-  // Reset Data
-  const handleResetData = () => {
-    resetAllToDefault();
-    refreshAllData();
+  const handleSavePermissions = async (matrix: PermissionMatrix) => {
+    try {
+      await apiService.savePermissions(matrix);
+      await refreshAllData();
+    } catch (err: any) {
+      alert(err.message || 'İzinler kaydedilemedi.');
+    }
   };
 
   // Notification Click -> Open MDT
-  const handleNotificationClick = (notif: NotificationItem) => {
-    markNotificationRead(notif.id);
+  const handleNotificationClick = async (notif: NotificationItem) => {
+    await apiService.markNotificationRead(notif.id);
     const targetMdt = mdts.find((m) => m.id === notif.mdtId);
     if (targetMdt) {
       setSelectedMDT(targetMdt);
     }
-    refreshAllData();
+    await refreshAllData();
   };
 
-  if (!isLoggedIn) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white text-sm font-bold">
+        EKOS MDT Sistemi Yükleniyor...
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || !currentUser) {
     return (
       <Login
         users={users}
@@ -346,7 +311,7 @@ export default function App() {
               onSaveUser={handleSaveUser}
               onSaveProject={handleSaveProject}
               onSavePermissions={handleSavePermissions}
-              onResetData={handleResetData}
+              onResetData={refreshAllData}
             />
           )}
         </main>
