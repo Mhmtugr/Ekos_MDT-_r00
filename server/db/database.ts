@@ -1,14 +1,6 @@
 import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
-import {
-  INITIAL_USERS,
-  INITIAL_PROJECTS,
-  INITIAL_MDTS,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_NOTIFICATIONS,
-  DEFAULT_PERMISSION_MATRIX,
-} from '../../src/data/mockData';
 import { computeLogHash } from '../utils/hashChain';
 
 interface StoreData {
@@ -81,179 +73,26 @@ export function initDatabase() {
 
   // 1. Seed Users if empty
   if (!store.users || store.users.length === 0) {
-    console.log('🌱 Seeding initial users into Native JSON Store...');
-    store.users = INITIAL_USERS.map((u) => {
-      const rawPassword = u.password || '123';
-      const passwordHash = bcrypt.hashSync(rawPassword, 10);
-      return {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        username: u.username || u.email.split('@')[0],
+    console.log('🌱 Seeding fallback users into Native JSON Store...');
+    const rawPassword = '123';
+    const passwordHash = bcrypt.hashSync(rawPassword, 10);
+    store.users = [
+      {
+        id: 'u1',
+        name: 'Mehmet Uğur',
+        email: 'mehmet@ekos.com',
+        username: 'mehmet',
         password_hash: passwordHash,
-        title: u.title,
-        role: u.role,
-        avatar: u.avatar || null,
-        active: u.active ? 1 : 0,
-      };
-    });
-    hasChanges = true;
-  }
-
-  // 2. Seed Projects if empty
-  if (!store.projects || store.projects.length === 0) {
-    console.log('🌱 Seeding initial projects into Native JSON Store...');
-    store.projects = INITIAL_PROJECTS.map((p) => ({
-      id: p.id,
-      canias_proje_no: p.caniasProjeNo,
-      client_name: p.clientName,
-      product_group: p.productGroup,
-      server_folder_path: p.serverFolderPath,
-      year: p.year,
-      created_at: p.createdAt,
-    }));
-    hasChanges = true;
-  }
-
-  // 3. Seed MDTs if empty
-  if (!store.mdt_requests || store.mdt_requests.length === 0) {
-    console.log('🌱 Seeding initial MDTs into Native JSON Store...');
-    store.mdt_requests = [];
-    store.approvals = [];
-    store.comments = [];
-    store.files = [];
-
-    for (const m of INITIAL_MDTS) {
-      store.mdt_requests.push({
-        id: m.id,
-        mdt_no: m.mdtNo,
-        revision_number: m.revisionNumber,
-        project_id: m.projectId,
-        title: m.title,
-        request_type: m.requestType,
-        has_mechanical_effect: m.hasMechanicalEffect ? 1 : 0,
-        priority: m.priority,
-        client_special_request: m.clientSpecialRequest,
-        reason: m.reason || null,
-        opened_by_id: m.openedById,
-        assigned_to_id: m.assignedToId || null,
-        current_status: m.currentStatus,
-        created_at: m.createdAt,
-        target_date: m.targetDate,
-        closed_at: m.closedAt || null,
-        is_historical: m.isHistorical ? 1 : 0,
-        year: m.year,
-        parent_mdt_id: m.parentMdtId || null,
-        version: 1,
-        technical_docs: JSON.stringify(m.technicalDocs || {}),
-      });
-
-      for (const a of m.approvals || []) {
-        store.approvals.push({
-          id: a.id,
-          mdt_id: m.id,
-          type: a.type,
-          requester_id: a.requesterId,
-          approver_id: a.approverId,
-          approver_name: a.approverName,
-          decision: a.decision,
-          reason: a.reason || null,
-          date: a.date,
-        });
+        title: 'Mühendislik Yöneticisi',
+        role: 'admin',
+        avatar: null,
+        active: 1,
       }
-
-      for (const c of m.comments || []) {
-        store.comments.push({
-          id: c.id,
-          mdt_id: m.id,
-          user_id: c.userId,
-          user_name: c.userName,
-          text: c.text,
-          created_at: c.createdAt,
-        });
-      }
-
-      for (const f of m.files || []) {
-        store.files.push({
-          id: f.id,
-          mdt_id: m.id,
-          name: f.name,
-          size: f.size,
-          uploaded_by_id: f.uploadedById,
-          uploaded_by_name: f.uploadedByName,
-          created_at: f.createdAt,
-        });
-      }
-    }
+    ];
     hasChanges = true;
   }
 
-  // 4. Seed Audit Logs if empty
-  if (!store.audit_logs || store.audit_logs.length === 0) {
-    console.log('🌱 Seeding initial audit logs into Native JSON Store with hash-chaining...');
-    store.audit_logs = [];
-    let lastHash = 'GENESIS_HASH_00000000000000000000000000000000000000000000000000000000';
-
-    for (const l of INITIAL_AUDIT_LOGS) {
-      const { prevHash, hash } = computeLogHash(
-        {
-          id: l.id,
-          userId: l.userId,
-          userName: l.userName,
-          action: l.action,
-          recordType: l.recordType,
-          recordId: l.recordId,
-          oldValue: l.oldValue,
-          newValue: l.newValue,
-          timestamp: l.timestamp,
-        },
-        lastHash
-      );
-
-      store.audit_logs.push({
-        id: l.id,
-        user_id: l.userId,
-        user_name: l.userName,
-        action: l.action,
-        record_type: l.recordType,
-        record_id: l.recordId,
-        old_value: l.oldValue || null,
-        new_value: l.newValue || null,
-        timestamp: l.timestamp,
-        prev_hash: prevHash,
-        hash: hash,
-      });
-
-      lastHash = hash;
-    }
-    hasChanges = true;
-  }
-
-  // 5. Seed Notifications if empty
-  if (!store.notifications || store.notifications.length === 0) {
-    console.log('🌱 Seeding initial notifications into Native JSON Store...');
-    store.notifications = INITIAL_NOTIFICATIONS.map((n) => ({
-      id: n.id,
-      user_id: n.userId,
-      mdt_id: n.mdtId,
-      mdt_no: n.mdtNo,
-      message: n.message,
-      read: n.read ? 1 : 0,
-      created_at: n.createdAt,
-    }));
-    hasChanges = true;
-  }
-
-  // 6. Seed Permissions if empty
-  if (!store.permissions || Object.keys(store.permissions).length === 0) {
-    console.log('🌱 Seeding initial permissions into Native JSON Store...');
-    store.permissions = {};
-    for (const [role, perms] of Object.entries(DEFAULT_PERMISSION_MATRIX)) {
-      store.permissions[role] = JSON.stringify(perms);
-    }
-    hasChanges = true;
-  }
-
+  // Removed seed logic as it required mockData.ts
   if (hasChanges) {
     saveStore();
   }
