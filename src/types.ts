@@ -38,7 +38,8 @@ export type MDTStatus =
   | 'MUSTERI_ONAYINDA'   // 6. Müşteri Onayında
   | 'REVIZYON_ISTENDI'   // 7. Revizyon İstendi
   | 'KAPATILDI'          // 8. Kapatıldı
-  | 'REDDEDILDI';        // Reddedildi
+  | 'REDDEDILDI'         // 9. Reddedildi
+  | 'IPTAL_EDILDI';      // 10. Talep Sahibi Tarafından İptal Edildi
 
 export type MDTPriority = 'DUSUK' | 'ORTA' | 'YUKSEK' | 'KRITIK';
 

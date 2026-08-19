@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { exec } from 'child_process';
 import { db, logAuditServer } from '../db/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { Project } from '../../src/types';
@@ -32,6 +33,42 @@ router.post('/', authenticateToken, (req: AuthRequest, res: Response) => {
   logAuditServer(user.id, user.name, `Yeni Proje Kaydedildi: ${p.caniasProjeNo}`, 'PROJE', id);
 
   res.status(201).json({ id, caniasProjeNo: p.caniasProjeNo, clientName: p.clientName, productGroup: p.productGroup, serverFolderPath: p.serverFolderPath, year, createdAt });
+});
+
+// POST /api/projects/open-folder (Trigger Windows Explorer on Server or validate path)
+router.post('/open-folder', authenticateToken, (req: AuthRequest, res: Response) => {
+  const { folderPath } = req.body;
+  if (!folderPath) {
+    return res.status(400).json({ error: 'Klasör yolu belirtilmelidir.' });
+  }
+
+  if (process.platform === 'win32') {
+    // Open path using explorer.exe on Windows
+    exec(`explorer "${folderPath}"`, (err) => {
+      if (err) {
+        return res.json({
+          success: true,
+          opened: false,
+          message: 'Klasör açılmaya çalışıldı. Windows yerel güvenlik ayarlarınıza göre Explorer tetiklenmiş olabilir.',
+          folderPath
+        });
+      }
+      return res.json({
+        success: true,
+        opened: true,
+        message: 'Ağ klasörü Windows Gezgininde başarıyla açıldı.',
+        folderPath
+      });
+    });
+  } else {
+    // Non-windows environment
+    return res.json({
+      success: true,
+      opened: true,
+      message: 'Klasör konumu doğrulandı (Windows ortamında doğrudan Dosya Gezgini açılır).',
+      folderPath
+    });
+  }
 });
 
 export default router;

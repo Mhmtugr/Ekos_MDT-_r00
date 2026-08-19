@@ -159,6 +159,32 @@ export const apiService = {
     return handleResponse<MDTRequest>(res);
   },
 
+  async deleteMDT(id: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/mdt/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return handleResponse<{ success: boolean; message: string }>(res);
+  },
+
+  async cancelMDT(id: string, reason: string): Promise<MDTRequest> {
+    const res = await fetch(`/api/mdt/${id}/cancel`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ reason }),
+    });
+    return handleResponse<MDTRequest>(res);
+  },
+
+  async openProjectFolder(folderPath: string): Promise<{ success: boolean; opened: boolean; message: string }> {
+    const res = await fetch('/api/projects/open-folder', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ folderPath }),
+    });
+    return handleResponse<{ success: boolean; opened: boolean; message: string }>(res);
+  },
+
   // Audit Logs
   async getAuditLogs(): Promise<AuditLog[]> {
     const res = await fetch('/api/audit-logs', { headers: getHeaders() });

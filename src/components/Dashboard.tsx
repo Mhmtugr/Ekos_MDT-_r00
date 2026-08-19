@@ -32,7 +32,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const now = new Date();
 
   // 1. KPI Calculations
-  const openMDTs = mdts.filter((m) => m.currentStatus !== 'KAPATILDI' && m.currentStatus !== 'REDDEDILDI');
+  const openMDTs = mdts.filter((m) => m.currentStatus !== 'KAPATILDI' && m.currentStatus !== 'REDDEDILDI' && m.currentStatus !== 'IPTAL_EDILDI');
 
   // Personalized "Onayımı Bekleyen" filter
   const waitingForMe = openMDTs.filter((m) => {
@@ -75,8 +75,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     );
   });
 
-  // Newly Created MDTs (Sorted by creation time descending - max 3 items as requested)
-  const newlyCreatedMDTs = [...mdts]
+  // Newly Created MDTs (Dashboard hygiene: Only active open requests needing attention, max 3 items)
+  const newlyCreatedMDTs = [...openMDTs]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 3);
 
@@ -110,6 +110,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">Kapatıldı</span>;
       case 'REDDEDILDI':
         return <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-[10px] font-semibold">Reddedildi</span>;
+      case 'IPTAL_EDILDI':
+        return <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">İptal Edildi</span>;
       default:
         return null;
     }

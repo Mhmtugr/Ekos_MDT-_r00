@@ -159,6 +159,8 @@ export const MDTList: React.FC<MDTListProps> = ({
         return <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">8. Kapatıldı</span>;
       case 'REDDEDILDI':
         return <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-[10px] font-semibold">Reddedildi</span>;
+      case 'IPTAL_EDILDI':
+        return <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold line-through">İptal Edildi</span>;
       default:
         return null;
     }

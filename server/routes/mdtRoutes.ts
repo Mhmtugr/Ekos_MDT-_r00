@@ -162,6 +162,16 @@ router.put('/:id', authenticateToken, (req: AuthRequest, res: Response) => {
     return res.status(404).json({ error: 'MDT bulunamadı.' });
   }
 
+  // Strict Role Check for Assigning / Re-assigning Engineers:
+  // Only Mehmet Uğur (MUHENDISLIK_YONETICISI / admin) has authority to assign or re-assign engineers!
+  if (body.assignedToId !== undefined && body.assignedToId !== existing.assigned_to_id) {
+    if (user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Yetki Hatası: Mühendis atama veya değiştirme yetkisi yalnızca Mühendislik Yöneticisine (Mehmet Uğur) aittir.'
+      });
+    }
+  }
+
   // Optimistic locking check
   const incomingVersion = body.version;
   if (incomingVersion !== undefined && incomingVersion !== existing.version) {
@@ -214,6 +224,116 @@ router.put('/:id', authenticateToken, (req: AuthRequest, res: Response) => {
   res.json(formatMdtRow(updated));
 });
 
+// DELETE /api/mdt/:id (Delete MDT within 24h by Requester if untouched)
+router.delete('/:id', authenticateToken, (req: AuthRequest, res: Response) => {
+  const user = req.user!;
+  const mdtId = req.params.id;
+
+  const existing = db.prepare('SELECT * FROM mdt_requests WHERE id = ?').get(mdtId) as any;
+  if (!existing) {
+    return res.status(404).json({ error: 'MDT bulunamadı.' });
+  }
+
+  // 1. Authorization: Only the creator of the request (or Admin) can delete it
+  if (existing.opened_by_id !== user.id && user.role !== 'admin') {
+    return res.status(403).json({ error: 'Yetki Hatası: Yalnızca talebi oluşturan kişi bu talebi silebilir.' });
+  }
+
+  // 2. 24-Hour Rule: Can only be deleted within 24 hours of creation (except admin)
+  const createdAtTime = new Date(existing.created_at).getTime();
+  const now = Date.now();
+  const hoursSinceCreation = (now - createdAtTime) / (1000 * 60 * 60);
+
+  if (hoursSinceCreation > 24 && user.role !== 'admin') {
+    return res.status(400).json({
+      error: 'Süre Aşımı: MDT talepleri yalnızca oluşturulduktan sonraki ilk 24 saat içinde silinebilir. Talebi iptal etmek için "İptal Et" seçeneğini kullanabilirsiniz.'
+    });
+  }
+
+  // 3. Untouched (Virginity) Rule: No approvals, comments, or files added by others
+  const approvals = db.prepare('SELECT id FROM approvals WHERE mdt_id = ?').all(mdtId) as any[];
+  const comments = db.prepare('SELECT id, user_id FROM comments WHERE mdt_id = ?').all(mdtId) as any[];
+  const files = db.prepare('SELECT id FROM files WHERE mdt_id = ?').all(mdtId) as any[];
+
+  if (approvals.length > 0) {
+    return res.status(400).json({ error: 'İşlem Kısıtı: Üzerinde onay süreci başlatılmış talepler silinemez. İptal seçeneğini kullanabilirsiniz.' });
+  }
+
+  const otherComments = comments.filter((c: any) => c.user_id !== user.id);
+  if (otherComments.length > 0 || files.length > 0) {
+    return res.status(400).json({ error: 'İşlem Kısıtı: Diğer birimler tarafından işlem/yorum yapılmış talepler silinemez. İptal seçeneğini kullanabilirsiniz.' });
+  }
+
+  // Perform clean cascade delete
+  db.prepare('DELETE FROM comments WHERE mdt_id = ?').run(mdtId);
+  db.prepare('DELETE FROM approvals WHERE mdt_id = ?').run(mdtId);
+  db.prepare('DELETE FROM files WHERE mdt_id = ?').run(mdtId);
+  db.prepare('DELETE FROM mdt_requests WHERE id = ?').run(mdtId);
+
+  logAuditServer(
+    user.id,
+    user.name,
+    `MDT_SILINDI_TALEP_SAHIBI: ${existing.mdt_no}`,
+    'MDT',
+    mdtId,
+    existing.mdt_no,
+    'Talep Sahibi Tarafından 24 Saat İçinde Silindi'
+  );
+
+  res.json({ success: true, message: `${existing.mdt_no} numaralı MDT talebi başarıyla silindi.` });
+});
+
+// POST /api/mdt/:id/cancel (Cancel MDT by Requester before closure)
+router.post('/:id/cancel', authenticateToken, (req: AuthRequest, res: Response) => {
+  const user = req.user!;
+  const mdtId = req.params.id;
+  const { reason } = req.body;
+
+  if (!reason || reason.trim().length === 0) {
+    return res.status(400).json({ error: 'İptal gerekçesi belirtilmelidir.' });
+  }
+
+  const existing = db.prepare('SELECT * FROM mdt_requests WHERE id = ?').get(mdtId) as any;
+  if (!existing) {
+    return res.status(404).json({ error: 'MDT bulunamadı.' });
+  }
+
+  // Authorization: Only the creator (or Admin) can cancel the request
+  if (existing.opened_by_id !== user.id && user.role !== 'admin') {
+    return res.status(403).json({ error: 'Yetki Hatası: Bu talebi yalnızca oluşturan kişi iptal edebilir.' });
+  }
+
+  // Cannot cancel if already closed
+  if (existing.current_status === 'KAPATILDI') {
+    return res.status(400).json({ error: 'Kapatılmış olan talepler iptal edilemez.' });
+  }
+
+  const newVersion = existing.version + 1;
+  const closedAt = new Date().toISOString();
+
+  db.prepare(`
+    UPDATE mdt_requests SET
+      current_status = 'IPTAL_EDILDI',
+      reason = ?,
+      closed_at = ?,
+      version = ?
+    WHERE id = ?
+  `).run(`Talep Sahibi Tarafından İptal Edildi: ${reason}`, closedAt, newVersion, mdtId);
+
+  logAuditServer(
+    user.id,
+    user.name,
+    `MDT_IPTAL_EDILDI_TALEP_SAHIBI: ${existing.mdt_no}`,
+    'MDT',
+    mdtId,
+    existing.current_status,
+    `IPTAL_EDILDI (Gerekçe: ${reason})`
+  );
+
+  const updated = db.prepare('SELECT * FROM mdt_requests WHERE id = ?').get(mdtId);
+  res.json(formatMdtRow(updated));
+});
+
 // POST /api/mdt/:id/status (Server-side State Machine & Transition Validation)
 router.post('/:id/status', authenticateToken, (req: AuthRequest, res: Response) => {
   const user = req.user!;
@@ -248,6 +368,10 @@ router.post('/:id/status', authenticateToken, (req: AuthRequest, res: Response) 
   }
 
   // Role-based permission checks for specific status transitions
+  if (targetStatus === 'IPTAL_EDILDI' && existing.opened_by_id !== user.id && user.role !== 'admin') {
+    return res.status(403).json({ error: 'Talebi yalnızca oluşturan kişi veya Mühendislik Yöneticisi iptal edebilir.' });
+  }
+
   if (targetStatus === 'MEKANIK_ONAYDA' && !['admin', 'electrical_design', 'project_management'].includes(user.role)) {
     return res.status(403).json({ error: 'Mekanik onay sürecini başlatma yetkiniz yoktur.' });
   }
@@ -261,7 +385,7 @@ router.post('/:id/status', authenticateToken, (req: AuthRequest, res: Response) 
   }
 
   const newVersion = existing.version + 1;
-  const closedAt = (targetStatus === 'KAPATILDI' || targetStatus === 'REDDEDILDI') ? new Date().toISOString() : existing.closed_at;
+  const closedAt = (targetStatus === 'KAPATILDI' || targetStatus === 'REDDEDILDI' || targetStatus === 'IPTAL_EDILDI') ? new Date().toISOString() : existing.closed_at;
   const updatedReason = reason || closureNote || rejectionReason || existing.reason;
 
   db.prepare(`

@@ -313,6 +313,11 @@ export default function App() {
           currentUser={currentUser}
           onClose={() => setSelectedMDT(null)}
           onUpdateMDT={handleUpdateMDT}
+          onDeleteMDT={(deletedId) => {
+            setMdts((prev) => prev.filter((m) => m.id !== deletedId));
+            setSelectedMDT(null);
+            refreshAllData();
+          }}
         />
       )}
 

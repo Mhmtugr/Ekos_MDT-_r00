@@ -16,6 +16,9 @@ import {
   Copy,
   AlertCircle,
   ExternalLink,
+  Trash2,
+  Ban,
+  FolderOpen,
 } from 'lucide-react';
 import { MDTRequest, Project, User, ApprovalRecord } from '../types';
 import { apiService } from '../services/apiService';
@@ -27,6 +30,7 @@ interface MDTDetailModalProps {
   currentUser: User;
   onClose: () => void;
   onUpdateMDT: (updated: MDTRequest, auditMsg: string) => void;
+  onDeleteMDT?: (id: string) => void;
 }
 
 export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
@@ -36,6 +40,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
   currentUser,
   onClose,
   onUpdateMDT,
+  onDeleteMDT,
 }) => {
   const project = projects.find((p) => p.id === mdt.projectId);
   const openedByUser = users.find((u) => u.id === mdt.openedById);
@@ -48,18 +53,66 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
   const [selectedExecutive, setSelectedExecutive] = useState<string>('u16'); // Tamer by default
   const [copiedServerPath, setCopiedServerPath] = useState(false);
   const [showNetworkToast, setShowNetworkToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Technical docs editing
   const [secNo, setSecNo] = useState(mdt.technicalDocs.secondaryProjectNo || '');
   const [sldNo, setSldNo] = useState(mdt.technicalDocs.sldLayoutNo || '');
   const [secStatus, setSecStatus] = useState(mdt.technicalDocs.secondaryProjectClientApproved || 'BEKLIYOR');
 
+  // Determine user roles & permissions
+  const isMehmet = currentUser.role === 'admin';
+  const isElectricalDesign = currentUser.role === 'electrical_design';
+  const isMechanical = currentUser.role === 'mechanical_approval';
+  const isExecutive = currentUser.role === 'executive_approval';
+  const isProjectManager = currentUser.role === 'project_management';
+  const isSales = currentUser.role === 'sales';
+  const isCreator = mdt.openedById === currentUser.id || isMehmet;
+
+  // 24-Hour and untouched deletion condition
+  const hoursSinceCreation = (Date.now() - new Date(mdt.createdAt).getTime()) / (1000 * 60 * 60);
+  const isUntouched = (mdt.approvals?.length || 0) === 0 && (mdt.comments?.length || 0) === 0 && (mdt.files?.length || 0) === 0;
+  const canDelete = isCreator && isUntouched && (hoursSinceCreation <= 24 || isMehmet) && mdt.currentStatus !== 'KAPATILDI';
+  const canCancel = isCreator && mdt.currentStatus !== 'KAPATILDI' && mdt.currentStatus !== 'IPTAL_EDILDI';
+
   const copyServerPath = () => {
-    if (project?.serverFolderPath) {
-      navigator.clipboard.writeText(project.serverFolderPath);
-      setCopiedServerPath(true);
+    const p = project?.serverFolderPath || `\\\\Ekosfilesrv\\ekos\\PROJELER\\${project?.caniasProjeNo || '26040006'}\\REV`;
+    navigator.clipboard.writeText(p);
+    setCopiedServerPath(true);
+    setToastMessage('Sunucu dosya bağlantısı panoya kopyalandı.');
+    setShowNetworkToast(true);
+    setTimeout(() => setCopiedServerPath(false), 3000);
+  };
+
+  const handleOpenFolderExplorer = async () => {
+    const p = project?.serverFolderPath || `\\\\Ekosfilesrv\\ekos\\PROJELER\\${project?.caniasProjeNo || '26040006'}\\REV`;
+    try {
+      const res = await apiService.openProjectFolder(p);
+      setToastMessage(res.message || 'Klasör Windows Gezgininde açıldı.');
       setShowNetworkToast(true);
-      setTimeout(() => setCopiedServerPath(false), 3000);
+    } catch (err: any) {
+      setToastMessage('Klasör açma komutu gönderildi.');
+      setShowNetworkToast(true);
+    }
+  };
+
+  // Helper to handle optimistic locking conflicts gracefully
+  const handleOptimisticConflict = async (err: any) => {
+    const msg = err.message || '';
+    if (msg.includes('Optimistic Locking') || msg.includes('409') || msg.includes('Versiyon')) {
+      alert('⚠️ Bilgi: Bu talep başka bir kullanıcı veya sekme tarafından güncellenmiştir. Son veriler getiriliyor, lütfen işleminizi tekrar deneyiniz.');
+      try {
+        const mdts = await apiService.getMDTs();
+        const latest = mdts.find((m) => m.id === mdt.id);
+        if (latest) {
+          onUpdateMDT(latest, 'Veri güncellendi (Senkronizasyon)');
+        }
+      } catch (e) {
+        // ignore
+      }
+    } else {
+      alert(msg || 'İşlem gerçekleştirilemedi.');
     }
   };
 
@@ -71,7 +124,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
       onUpdateMDT(updated, `Yorum eklendi: "${commentText.slice(0, 30)}..."`);
       setCommentText('');
     } catch (err: any) {
-      alert(err.message || 'Yorum eklenemedi.');
+      await handleOptimisticConflict(err);
     }
   };
 
@@ -91,7 +144,22 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
       });
       onUpdateMDT(updated, 'Teknik doküman takip bilgileri güncellendi.');
     } catch (err: any) {
-      alert(err.message || 'Güncelleme başarısız.');
+      await handleOptimisticConflict(err);
+    }
+  };
+
+  // Assign Engineer (Only Mehmet Uğur)
+  const handleAssignEngineer = async (engineerId: string) => {
+    if (!isMehmet) return;
+    try {
+      const updated = await apiService.updateMDT(mdt.id, {
+        version: mdt.version,
+        assignedToId: engineerId || undefined,
+      });
+      const engName = users.find((u) => u.id === engineerId)?.name || 'Atanmadı';
+      onUpdateMDT(updated, `Mühendislik Yöneticisi tarafından ${engName} atandı.`);
+    } catch (err: any) {
+      await handleOptimisticConflict(err);
     }
   };
 
@@ -99,8 +167,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
   const handleExecuteAction = async (
     newStatus: MDTRequest['currentStatus'],
     actionType: 'ONAY' | 'RED' | 'REVIZYON',
-    actionLabel: string,
-    additionalAssigneeId?: string
+    actionLabel: string
   ) => {
     const approvalType =
       currentUser.role === 'mechanical_approval'
@@ -121,13 +188,6 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
         expectedVersion: mdt.version,
       });
 
-      if (additionalAssigneeId) {
-        await apiService.updateMDT(mdt.id, {
-          version: updated.version,
-          assignedToId: additionalAssigneeId,
-        });
-      }
-
       onUpdateMDT(
         updated,
         `Talep '${actionLabel}' işlemi ile ${newStatus} statüsüne alındı.`
@@ -135,45 +195,36 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
       setActionReason('');
       setShowReasonInput(null);
     } catch (err: any) {
-      alert(err.message || 'İşlem gerçekleştirilemedi.');
+      await handleOptimisticConflict(err);
     }
   };
 
-  // Mechanical Approval trigger by Design Engineer
+  // Mechanical Approval trigger by Design Engineer (Atomic state update)
   const handleRequestMechanical = async () => {
     try {
       const updated = await apiService.updateMDTStatus(mdt.id, 'MEKANIK_ONAYDA', {
         reason: 'Mekanik tasarım kontrolü istendi.',
         expectedVersion: mdt.version,
       });
-      await apiService.updateMDT(mdt.id, {
-        version: updated.version,
-        hasMechanicalEffect: true,
-        assignedToId: mdt.technicalDocs.checkedMechanicalById || 'u17',
-      });
       onUpdateMDT(
         updated,
         'Mühendislik Birimi tarafından Mekanik Tasarım Etkisi tanımlandı ve talep Mekanik Tasarıma yönlendirildi (Erhan Gürbüz).'
       );
     } catch (err: any) {
-      alert(err.message || 'İşlem gerçekleştirilemedi.');
+      await handleOptimisticConflict(err);
     }
   };
 
-  // Send to Mehmet Uğur
+  // Send to Mehmet Uğur (Atomic state update)
   const handleSendToMehmet = async () => {
     try {
       const updated = await apiService.updateMDTStatus(mdt.id, 'MEHMET_ONAYINDA', {
         reason: 'Mehmet Uğur onayına gönderildi.',
         expectedVersion: mdt.version,
       });
-      await apiService.updateMDT(mdt.id, {
-        version: updated.version,
-        assignedToId: 'u1',
-      });
       onUpdateMDT(updated, 'Talep Mehmet Uğur onayına gönderildi.');
     } catch (err: any) {
-      alert(err.message || 'İşlem gerçekleştirilemedi.');
+      await handleOptimisticConflict(err);
     }
   };
 
@@ -182,20 +233,51 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
     try {
       const execUser = users.find((u) => u.id === selectedExecutive);
       const updated = await apiService.updateMDTStatus(mdt.id, 'UST_ONAYDA', {
-        reason: `Üst Onay Talebi açıldı (${execUser?.name || 'Üst Yönetim'} atandı).`,
+        reason: `Üst Onay Talebi açıldı (${execUser?.name || 'Üst Yönetim'} atandı: ${actionReason || 'Gerekçe belirtildi'}).`,
         expectedVersion: mdt.version,
-      });
-      await apiService.updateMDT(mdt.id, {
-        version: updated.version,
-        assignedToId: selectedExecutive,
       });
       onUpdateMDT(
         updated,
         `Üst Onay Talebi açıldı (${execUser?.name || 'Üst Yönetim'} atandı).`
       );
+      setActionReason('');
       setShowReasonInput(null);
     } catch (err: any) {
-      alert(err.message || 'İşlem gerçekleştirilemedi.');
+      await handleOptimisticConflict(err);
+    }
+  };
+
+  // Delete MDT within 24h by Creator
+  const handleDeleteMDT = async () => {
+    if (!window.confirm(`${mdt.mdtNo} numaralı MDT talebini kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await apiService.deleteMDT(mdt.id);
+      if (onDeleteMDT) {
+        onDeleteMDT(mdt.id);
+      }
+      onClose();
+    } catch (err: any) {
+      setIsDeleting(false);
+      await handleOptimisticConflict(err);
+    }
+  };
+
+  // Cancel MDT by Creator
+  const handleCancelMDT = async () => {
+    if (!actionReason.trim()) {
+      alert('Lütfen iptal gerekçesini belirtiniz.');
+      return;
+    }
+    try {
+      const updated = await apiService.cancelMDT(mdt.id, actionReason.trim());
+      onUpdateMDT(updated, `Talep Sahibi Tarafından İptal Edildi: ${actionReason.trim()}`);
+      setActionReason('');
+      setShowReasonInput(null);
+    } catch (err: any) {
+      await handleOptimisticConflict(err);
     }
   };
 
@@ -212,24 +294,15 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
       await apiService.updateMDT(mdt.id, {
         version: updated.version,
         revisionNumber: nextRevNum,
-        assignedToId: mdt.technicalDocs.drawnById || 'u2',
       });
       onUpdateMDT(
         updated,
         `Müşteri revizyonu sebebiyle ${nextRevNum} oluşturuldu ve Tasarım aşamasına alındı.`
       );
     } catch (err: any) {
-      alert(err.message || 'İşlem gerçekleştirilemedi.');
+      await handleOptimisticConflict(err);
     }
   };
-
-  // Determine user permissions for action bar
-  const isMehmet = currentUser.role === 'admin';
-  const isElectricalDesign = currentUser.role === 'electrical_design';
-  const isMechanical = currentUser.role === 'mechanical_approval';
-  const isExecutive = currentUser.role === 'executive_approval';
-  const isProjectManager = currentUser.role === 'project_management';
-  const isSales = currentUser.role === 'sales';
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
@@ -258,35 +331,45 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
         {/* Modal Content Scroll Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-slate-700">
           {/* UNC Server Folder Banner */}
-          <div className="p-3 bg-slate-900 text-slate-200 rounded-lg flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+          <div className="p-3 bg-slate-900 text-slate-200 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3 min-w-0">
               <FolderSymlink className="w-4 h-4 text-red-400 shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <div className="font-semibold text-white">
-                  Şirket Sunucu Dosya Bağlantısı (UNC Path):
+                  Şirket Sunucu Dosya Bağlantısı (CANIAS UNC Path):
                 </div>
-                <div className="text-[11px] text-slate-300 font-mono mt-0.5">
-                  {project?.serverFolderPath || '\\\\Ekosfilesrv\\ekos\\PROJELER\\...'}
+                <div className="text-[11px] text-slate-300 font-mono mt-0.5 truncate select-all">
+                  {project?.serverFolderPath || `\\\\Ekosfilesrv\\ekos\\PROJELER\\${project?.caniasProjeNo || '26040006'}\\REV`}
                 </div>
               </div>
             </div>
-            <button
-              onClick={copyServerPath}
-              className="flex items-center space-x-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold border border-slate-700 transition shrink-0"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>{copiedServerPath ? 'Kopyalandı!' : 'Yolu Kopyala'}</span>
-            </button>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                onClick={handleOpenFolderExplorer}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded text-xs font-semibold transition shadow-xs"
+                title="Windows Gezgininde Klasörü Aç"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>Klasörü Aç</span>
+              </button>
+              <button
+                onClick={copyServerPath}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold border border-slate-700 transition"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copiedServerPath ? 'Kopyalandı!' : 'Yolu Kopyala'}</span>
+              </button>
+            </div>
           </div>
 
           {showNetworkToast && (
             <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-md text-[11px] flex items-center justify-between animate-in fade-in">
               <span>
-                <strong>Bilgi:</strong> Sunucu dosya bağlantısı kopyalandı. Bu bağlantıya yalnızca şirket ağından (LAN / VPN) erişilebilir.
+                <strong>Bilgi:</strong> {toastMessage || 'Sunucu dosya bağlantısı kopyalandı. Bu bağlantıya yalnızca şirket ağından (LAN / VPN) erişilebilir.'}
               </span>
               <button
                 onClick={() => setShowNetworkToast(false)}
-                className="text-amber-600 font-bold ml-2"
+                className="text-amber-600 font-bold ml-2 hover:underline"
               >
                 Tamam
               </button>
@@ -363,12 +446,33 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
               </div>
             </div>
 
+            {/* Atanan Mühendis (Editable ONLY by Mehmet Uğur - Rule 3.1) */}
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">
-                Atanan Mühendis
+              <div className="text-[10px] text-slate-400 uppercase font-bold flex items-center justify-between">
+                <span>Atanan Mühendis</span>
+                {isMehmet && <span className="text-[9px] text-[#D32F2F] font-semibold">(Yönetici Yetkisi)</span>}
               </div>
-              <div className="font-semibold text-slate-700 mt-0.5">
-                {assignedUser?.name || 'Atanmadı'}
+              <div className="mt-0.5">
+                {isMehmet ? (
+                  <select
+                    value={mdt.assignedToId || ''}
+                    onChange={(e) => handleAssignEngineer(e.target.value)}
+                    className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-red-500"
+                  >
+                    <option value="">-- Mühendis Seçiniz --</option>
+                    {users
+                      .filter((u) => u.role === 'electrical_design' || u.role === 'admin')
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.role === 'admin' ? 'Müh. Yöneticisi' : 'Elektrik Tasarım'})
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <div className="font-semibold text-slate-700 py-0.5">
+                    {assignedUser?.name || 'Atanmadı'}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -378,19 +482,6 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
               </div>
               <div className="text-slate-600 mt-0.5">
                 {new Date(mdt.createdAt).toLocaleDateString('tr-TR')}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-[10px] text-slate-400 uppercase font-bold">
-                Mekanik Etki
-              </div>
-              <div className="mt-0.5 font-semibold">
-                {mdt.hasMechanicalEffect ? (
-                  <span className="text-amber-700">Mekanik Etkisi Var</span>
-                ) : (
-                  <span className="text-slate-500">Mekanik Talep Yok</span>
-                )}
               </div>
             </div>
           </div>
@@ -405,7 +496,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
             </div>
             {mdt.reason && (
               <div className="text-[11px] text-slate-500 italic">
-                Değişiklik Gerekçesi: {mdt.reason}
+                Değişiklik Gerekçesi / Notu: {mdt.reason}
               </div>
             )}
           </div>
@@ -478,34 +569,6 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* Turquality Prosedürü Madde 5.8: CANIAS Sunucu Klasör Yolu Köprü Linki */}
-            <div className="p-3 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <FolderSymlink className="w-5 h-5 text-red-400 shrink-0" />
-                <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    CANIAS Sunucu Proje Klasörü Köprü Linki (Prosedür Madde 5.8)
-                  </div>
-                  <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 select-all">
-                    \\\\Server\\Proje_Dosyalari\\{project?.caniasProjeNo || '26040006'}\\REV
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const link = `\\\\Server\\Proje_Dosyalari\\${project?.caniasProjeNo || '26040006'}\\REV`;
-                  navigator.clipboard.writeText(link);
-                  setCopiedServerPath(true);
-                  setShowNetworkToast(true);
-                }}
-                className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white font-bold rounded text-xs transition flex items-center space-x-1.5 shadow-xs"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{copiedServerPath ? 'Köprü Linki Kopyalandı' : 'Köprü Linkini Kopyala'}</span>
-              </button>
-            </div>
           </div>
 
           {/* Section 4: Approval Flow Timeline */}
@@ -560,7 +623,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
               <div className="flex items-center space-x-2">
                 <ShieldAlert className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>
-                  <strong>Turquality Kayıt Saklama Güvencesi:</strong> Tüm MDT verileri, dijital loglar ve onay geçmişi EKOS-FORM-05-07 Doküman Saklama Prosedürü uyarınca SQL veritabanında süresiz saklanmaktadır.
+                  <strong>Turquality Kayıt Saklama Güvencesi:</strong> Tüm MDT verileri, dijital loglar ve onay geçmişi EKOS-FORM-05-07 Doküman Saklama Prosedürü uyarınca SQL/JSON veritabanında süresiz ve SHA-256 zinciriyle saklanmaktadır.
                 </span>
               </div>
               <span className="font-mono font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded shrink-0">
@@ -638,19 +701,21 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 type="text"
                 value={actionReason}
                 onChange={(e) => setActionReason(e.target.value)}
-                placeholder="Karar gerekçenizi yazınız..."
+                placeholder={showReasonInput === 'TALEP_IPTAL' ? 'İptal gerekçenizi yazınız...' : 'Karar gerekçenizi yazınız...'}
                 className="px-3 py-1 bg-white border border-slate-300 rounded text-xs text-slate-800 w-64"
+                autoFocus
               />
 
               <button
                 onClick={() => {
+                  if (showReasonInput === 'TALEP_IPTAL') handleCancelMDT();
                   if (showReasonInput === 'MEHMET_ONAY') handleExecuteAction('MUSTERI_ONAYINDA', 'ONAY', 'Mehmet Uğur Onaylandı');
                   if (showReasonInput === 'MEHMET_REVIZION') handleExecuteAction('REVIZYON_ISTENDI', 'REVIZYON', 'Mehmet Uğur Revizyon İstedi');
                   if (showReasonInput === 'MEKANIK_ONAY') handleExecuteAction('MEHMET_ONAYINDA', 'ONAY', 'Mekanik Onaylandı');
                   if (showReasonInput === 'MEKANIK_REVIZION') handleExecuteAction('TASARIMDA', 'REVIZYON', 'Mekanik Revizyon İstedi');
                   if (showReasonInput === 'UST_ONAY') handleSendToExecutive();
                   if (showReasonInput === 'UST_EXEC_ONAY') handleExecuteAction('MEHMET_ONAYINDA', 'ONAY', 'Üst Onay Verildi');
-                  if (showReasonInput === 'UST_EXEC_RED') handleExecuteAction('REDDEDILDI', 'RED', 'Üst Yönetim Reddeti');
+                  if (showReasonInput === 'UST_EXEC_RED') handleExecuteAction('REDDEDILDI', 'RED', 'Üst Yönetim Reddetti');
                   if (showReasonInput === 'KAPAT') handleExecuteAction('KAPATILDI', 'ONAY', 'Talep Kapatıldı');
                 }}
                 className="px-3 py-1 bg-[#D32F2F] hover:bg-red-700 text-white font-bold text-xs rounded transition"
@@ -660,9 +725,9 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
 
               <button
                 onClick={() => setShowReasonInput(null)}
-                className="px-2 py-1 bg-slate-200 text-slate-700 text-xs rounded"
+                className="px-2 py-1 bg-slate-200 text-slate-700 text-xs rounded hover:bg-slate-300 transition"
               >
-                İptal
+                Vazgeç
               </button>
             </div>
           )}
@@ -670,8 +735,33 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
           {/* Action Button Set */}
           {!showReasonInput && (
             <div className="flex flex-wrap items-center gap-2">
+              {/* Requester Deletion Button (24-Hour & Untouched Rule - Module 2.1) */}
+              {canDelete && (
+                <button
+                  onClick={handleDeleteMDT}
+                  disabled={isDeleting}
+                  className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white font-semibold rounded text-xs transition flex items-center space-x-1 shadow-2xs"
+                  title="İlk 24 saat içinde ve işlem görmemiş olduğu için talebi tamamen siler"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Talebi Sil</span>
+                </button>
+              )}
+
+              {/* Requester Cancellation Button (Module 2.2) */}
+              {canCancel && (
+                <button
+                  onClick={() => setShowReasonInput('TALEP_IPTAL')}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded text-xs transition flex items-center space-x-1"
+                  title="Talebi gerekçe belirterek iptal edildi olarak kapatır"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>Talebi İptal Et</span>
+                </button>
+              )}
+
               {/* Electrical Design Engineers Actions */}
-              {(isElectricalDesign || isMehmet) && mdt.currentStatus === 'TASARIMDA' && (
+              {(isElectricalDesign || isMehmet) && (mdt.currentStatus === 'TASARIMDA' || mdt.currentStatus === 'REVIZYON_ISTENDI') && (
                 <>
                   <button
                     onClick={handleRequestMechanical}
@@ -767,7 +857,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
               )}
 
               {/* Close Button for Mehmet or PM */}
-              {(isMehmet || isProjectManager) && mdt.currentStatus !== 'KAPATILDI' && (
+              {(isMehmet || isProjectManager) && mdt.currentStatus !== 'KAPATILDI' && mdt.currentStatus !== 'IPTAL_EDILDI' && (
                 <button
                   onClick={() => setShowReasonInput('KAPAT')}
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded text-xs transition"

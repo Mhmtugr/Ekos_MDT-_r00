@@ -27,6 +27,7 @@
   "devDependencies": {
     "@esbuild/win32-x64": "^0.25.0",
     "@rollup/rollup-win32-x64-msvc": "^4.34.8",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.1.14",
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
@@ -38,5 +39,11 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
+  },
+  "optionalDependencies": {
+    "@esbuild/win32-x64": "^0.25.0",
+    "@rollup/rollup-win32-x64-msvc": "^4.34.8",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.1.14",
+    "lightningcss-win32-x64-msvc": "^1.32.0"
   }
 }
