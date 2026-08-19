@@ -14,7 +14,6 @@ import { User, NotificationItem } from '../types';
 interface HeaderProps {
   currentUser: User;
   onOpenNewMDT: () => void;
-  onOpenUserSwitch: () => void;
   onLogout: () => void;
   notifications: NotificationItem[];
   onNotificationClick: (notif: NotificationItem) => void;
@@ -25,7 +24,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenNewMDT,
-  onOpenUserSwitch,
   onLogout,
   notifications,
   onNotificationClick,

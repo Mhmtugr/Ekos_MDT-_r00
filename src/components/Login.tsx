@@ -31,31 +31,6 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
     }
   };
 
-  const handleQuickSelect = async (u: User) => {
-    const un = u.username || u.email;
-    const pw = u.password || '123';
-    setUsername(un);
-    setPassword(pw);
-    setError(null);
-    setLoading(true);
-
-    try {
-      const { user } = await apiService.login(un, pw);
-      onLogin(user);
-    } catch (err: any) {
-      setError(err.message || 'Giriş yapılamadı.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const quickUsers = [
-    users.find((u) => u.id === 'u1'), // Mehmet Uğur (Admin)
-    users.find((u) => u.id === 'u2'), // Halil Kerçin (Elektrik)
-    users.find((u) => u.id === 'u17'), // Erhan Gürbüz (Mekanik)
-    users.find((u) => u.id === 'u4'), // Osman Çelen (Satış)
-  ].filter(Boolean) as User[];
-
   return (
     <div className="min-h-screen bg-slate-900 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(211,47,47,0.15),rgba(255,255,255,0))] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
@@ -170,36 +145,6 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
             <Eye className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
             <span>Misafir Modu İle Giriş Yap (Sadece Gözlem)</span>
           </button>
-
-          {/* Quick Demo Switcher Pills */}
-          <div className="pt-3 border-t border-slate-100">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Hızlı Rol Girişi (Test İçin Tıklayın)
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {quickUsers.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => handleQuickSelect(u)}
-                  className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-left transition flex items-center space-x-2 cursor-pointer"
-                >
-                  <div className="w-6 h-6 rounded-full bg-slate-800 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
-                    {u.name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')}
-                  </div>
-                  <div className="truncate">
-                    <div className="text-[11px] font-bold text-slate-800 truncate">{u.name}</div>
-                    <div className="text-[9px] text-slate-500 truncate">
-                      {u.username || u.email.split('@')[0]}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Footer info */}

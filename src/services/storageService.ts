@@ -9,18 +9,8 @@ import {
 import { apiService } from './apiService';
 
 // Synchronous legacy wrappers using localStorage cache or fallback
-export function getCurrentUser(): User {
-  const cached = apiService.getCurrentUser();
-  if (cached) return cached;
-  return {
-    id: 'u1',
-    name: 'Mehmet Uğur',
-    email: 'mehmet.ugur@ekoselectric.com',
-    username: 'mehmet.ugur',
-    title: 'Mühendislik Yöneticisi',
-    role: 'admin',
-    active: true,
-  };
+export function getCurrentUser(): User | null {
+  return apiService.getCurrentUser();
 }
 
 export function setCurrentUser(user: User) {

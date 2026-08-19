@@ -14,7 +14,6 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   currentUser: User;
-  onOpenUserSwitch: () => void;
   onLogout: () => void;
 }
 
@@ -22,7 +21,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   currentUser,
-  onOpenUserSwitch,
   onLogout,
 }) => {
   const isMehmetOrAdmin = currentUser.role === 'admin';

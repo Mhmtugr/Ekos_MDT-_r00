@@ -18,7 +18,6 @@ import { AuditLogs } from './components/AuditLogs';
 import { Settings } from './components/Settings';
 import { MDTDetailModal } from './components/MDTDetailModal';
 import { NewMDTModal } from './components/NewMDTModal';
-import { UserSwitcherModal } from './components/UserSwitcherModal';
 import { Login } from './components/Login';
 
 export default function App() {
@@ -41,7 +40,6 @@ export default function App() {
   const [selectedMDT, setSelectedMDT] = useState<MDTRequest | null>(null);
   const [showNewMDTModal, setShowNewMDTModal] = useState<boolean>(false);
   const [isRetroactiveNewMDT, setIsRetroactiveNewMDT] = useState<boolean>(false);
-  const [showUserSwitcher, setShowUserSwitcher] = useState<boolean>(false);
 
   const handleNavigateTab = (tab: string, filter?: string) => {
     if (filter) {
@@ -64,6 +62,8 @@ export default function App() {
         }
       } catch (err) {
         setIsLoggedIn(false);
+        localStorage.removeItem('ekos_mdt_jwt_token');
+        localStorage.removeItem('ekos_mdt_current_user');
       } finally {
         setLoading(false);
       }
@@ -98,17 +98,6 @@ export default function App() {
       }
     } catch (err) {
       console.error('Data refresh error:', err);
-    }
-  };
-
-  // User Switch Handler
-  const handleSelectUser = async (user: User) => {
-    try {
-      const { user: loggedInUser } = await apiService.login(user.username || user.email, '123');
-      setCurrentUserState(loggedInUser);
-      await refreshAllData();
-    } catch (err) {
-      console.error('User switch error:', err);
     }
   };
 
@@ -243,7 +232,6 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         currentUser={currentUser}
-        onOpenUserSwitch={() => setShowUserSwitcher(true)}
         onLogout={handleLogout}
       />
 
@@ -256,7 +244,6 @@ export default function App() {
             setIsRetroactiveNewMDT(false);
             setShowNewMDTModal(true);
           }}
-          onOpenUserSwitch={() => setShowUserSwitcher(true)}
           onLogout={handleLogout}
           notifications={notifications}
           onNotificationClick={handleNotificationClick}
@@ -338,16 +325,6 @@ export default function App() {
           isRetroactive={isRetroactiveNewMDT}
           onClose={() => setShowNewMDTModal(false)}
           onCreateMDT={handleCreateMDT}
-        />
-      )}
-
-      {/* User / Role Switcher Modal */}
-      {showUserSwitcher && (
-        <UserSwitcherModal
-          users={users}
-          currentUser={currentUser}
-          onSelectUser={handleSelectUser}
-          onClose={() => setShowUserSwitcher(false)}
         />
       )}
     </div>
