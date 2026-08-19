@@ -36,7 +36,7 @@ async function main() {
     res.json({
       status: 'ok',
       system: 'EKOS MDT Server',
-      database: 'SQLite (better-sqlite3)',
+      database: 'EKOS Native JSON Store (Zero-Dependency)',
       timestamp: new Date().toISOString()
     });
   });
