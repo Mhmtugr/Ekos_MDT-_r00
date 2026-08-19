@@ -71,19 +71,24 @@ export function initDatabase() {
 
   let hasChanges = false;
 
-  // 1. Seed Users if empty
+  // 1. Ensure Root Administrator Exists (Enterprise Provisioning)
   if (!store.users || store.users.length === 0) {
-    console.log('🌱 Seeding fallback users into Native JSON Store...');
-    const rawPassword = '123';
-    const passwordHash = bcrypt.hashSync(rawPassword, 10);
+    console.log('🔒 Veritabanı boş. Sistem yöneticisi (Root Admin) yapılandırılıyor...');
+    
+    // Güvenlik: Kimlik bilgileri ortam değişkenlerinden (ENV) alınır, yoksa standart kurumsal varsayılanlar kullanılır.
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@ekos.com';
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin.123456!';
+    const passwordHash = bcrypt.hashSync(adminPassword, 10);
+    
     store.users = [
       {
-        id: 'u1',
-        name: 'Mehmet Uğur',
-        email: 'mehmet@ekos.com',
-        username: 'mehmet',
+        id: 'sys-root-admin',
+        name: 'System Administrator',
+        email: adminEmail,
+        username: adminUsername,
         password_hash: passwordHash,
-        title: 'Mühendislik Yöneticisi',
+        title: 'System Administrator',
         role: 'admin',
         avatar: null,
         active: 1,
