@@ -25,6 +25,8 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@esbuild/win32-x64": "^0.25.0",
+    "@rollup/rollup-win32-x64-msvc": "^4.34.8",
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
