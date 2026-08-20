@@ -1,0 +1,9 @@
+{
+  "name": "EKOS MDT Sistemi",
+  "short_name": "EKOS MDT",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "description": "EKOS Kurumsal MDT Takip ve Yönetim Sistemi"
+}
