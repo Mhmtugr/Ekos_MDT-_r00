@@ -49,6 +49,7 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
   // Local state for actions
   const [commentText, setCommentText] = useState('');
   const [actionReason, setActionReason] = useState('');
+  const [clientRequestText, setClientRequestText] = useState(mdt.clientSpecialRequest || '');
   const [showReasonInput, setShowReasonInput] = useState<string | null>(null);
   const [selectedExecutive, setSelectedExecutive] = useState<string>('u16'); // Tamer by default
   const [copiedServerPath, setCopiedServerPath] = useState(false);
@@ -123,6 +124,19 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
       const updated = await apiService.addComment(mdt.id, commentText);
       onUpdateMDT(updated, `Yorum eklendi: "${commentText.slice(0, 30)}..."`);
       setCommentText('');
+    } catch (err: any) {
+      await handleOptimisticConflict(err);
+    }
+  };
+
+  // Save Client Request Info
+  const handleSaveClientRequest = async () => {
+    try {
+      const updated = await apiService.updateMDT(mdt.id, {
+        version: mdt.version,
+        clientSpecialRequest: clientRequestText,
+      });
+      onUpdateMDT(updated, 'Müşteri & Revizyon Talebi Detayı güncellendi.');
     } catch (err: any) {
       await handleOptimisticConflict(err);
     }
@@ -488,12 +502,32 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
 
           {/* Section 2: Request Detail Description */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-1">
-              Müşteri & Revizyon Talebi Detayı
-            </h3>
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 leading-relaxed font-normal whitespace-pre-wrap">
-              {mdt.clientSpecialRequest}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Müşteri & Revizyon Talebi Detayı
+              </h3>
+              {isCreator && (
+                <button
+                  onClick={handleSaveClientRequest}
+                  className="text-[10px] bg-slate-800 hover:bg-slate-900 text-white font-semibold px-2.5 py-1 rounded transition"
+                >
+                  Değişiklikleri Kaydet
+                </button>
+              )}
             </div>
+            {isCreator ? (
+              <textarea
+                value={clientRequestText}
+                onChange={(e) => setClientRequestText(e.target.value)}
+                className="w-full p-3.5 bg-white border border-slate-300 rounded-lg text-slate-800 leading-relaxed font-normal whitespace-pre-wrap focus:outline-hidden focus:border-slate-500"
+                rows={4}
+                placeholder="Talebiniz veya müşteri detayını buraya girin..."
+              />
+            ) : (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 leading-relaxed font-normal whitespace-pre-wrap">
+                {mdt.clientSpecialRequest}
+              </div>
+            )}
             {mdt.reason && (
               <div className="text-[11px] text-slate-500 italic">
                 Değişiklik Gerekçesi / Notu: {mdt.reason}
@@ -533,15 +567,21 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700">
                   Müşteri Sekonder Proje Onayı
                 </label>
-                <select
-                  value={secStatus}
-                  onChange={(e) => setSecStatus(e.target.value as any)}
-                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded text-xs text-slate-800"
-                >
-                  <option value="BEKLIYOR">Müşteri Onayı Bekliyor</option>
-                  <option value="ONAYLANDI">Müşteri Tarafından Onaylandı</option>
-                  <option value="REVIZYON">Müşteri Revizyon İstedi</option>
-                </select>
+                {isCreator || isMehmet ? (
+                  <select
+                    value={secStatus}
+                    onChange={(e) => setSecStatus(e.target.value as any)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded text-xs text-slate-800"
+                  >
+                    <option value="BEKLIYOR">Müşteri Onayı Bekliyor</option>
+                    <option value="ONAYLANDI">Müşteri Tarafından Onaylandı</option>
+                    <option value="REVIZYON">Müşteri Revizyon İstedi</option>
+                  </select>
+                ) : (
+                  <div className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded text-xs text-slate-600 font-semibold h-[30px] flex items-center">
+                    {secStatus === 'ONAYLANDI' ? 'Müşteri Tarafından Onaylandı' : secStatus === 'REVIZYON' ? 'Müşteri Revizyon İstedi' : 'Müşteri Onayı Bekliyor'}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -559,14 +599,19 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
 
               <div className="space-y-1 text-[11px] text-slate-600 pt-2">
                 <div>
-                  <strong>Çizen:</strong> {users.find((u) => u.id === mdt.technicalDocs.drawnById)?.name || 'Çizen atanmadı'}
+                  <strong>Çizen:</strong> {users.find((u) => u.id === mdt.technicalDocs.drawnById)?.name || assignedUser?.name || 'Tasarımcı Bekleniyor'}
                 </div>
                 <div>
-                  <strong>Kontrol Eden (Elektrik):</strong> {users.find((u) => u.id === mdt.technicalDocs.checkedElectricalById)?.name || 'Mehmet Uğur'}
+                  <strong>Kontrol Eden (Elektrik):</strong> {mdt.approvals.find(a => a.type === 'ELEKTRIK' && a.decision === 'ONAY')?.approverName || 'Onay Bekleniyor'}
                 </div>
                 <div>
-                  <strong>Kontrol Eden (Mekanik):</strong> {users.find((u) => u.id === mdt.technicalDocs.checkedMechanicalById)?.name || 'Erhan Gürbüz'}
+                  <strong>Kontrol Eden (Mekanik):</strong> {mdt.approvals.find(a => a.type === 'MEKANIK' && a.decision === 'ONAY')?.approverName || (mdt.hasMechanicalEffect ? 'Onay Bekleniyor' : 'Gerekmiyor')}
                 </div>
+                {mdt.approvals.some(a => a.type === 'UST' && a.decision === 'ONAY') && (
+                  <div>
+                    <strong>Üst Onay:</strong> {mdt.approvals.find(a => a.type === 'UST' && a.decision === 'ONAY')?.approverName}
+                  </div>
+                )}
               </div>
             </div>
           </div>
