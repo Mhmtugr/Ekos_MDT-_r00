@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { db } from '../db/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { sendNotificationEmail } from '../utils/emailSender';
 
 const router = Router();
 
@@ -27,6 +28,16 @@ router.post('/', authenticateToken, (req: AuthRequest, res: Response) => {
     INSERT INTO notifications (id, user_id, mdt_id, mdt_no, message, read, created_at)
     VALUES (?, ?, ?, ?, ?, 0, ?)
   `).run(notifId, targetUserId, mdtId, mdtNo, message, createdAt);
+
+  // E-posta gönderim işlemi (Asenkron)
+  try {
+    const targetUser: any = db.prepare('SELECT email FROM users WHERE id = ?').get(targetUserId);
+    if (targetUser && targetUser.email) {
+      sendNotificationEmail(targetUser.email, mdtNo, message);
+    }
+  } catch (error) {
+    console.error('E-posta adresi alınırken veya gönderilirken hata oluştu:', error);
+  }
 
   res.status(201).json({ success: true });
 });
