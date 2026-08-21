@@ -33,10 +33,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Sadece Satış ve Proje Yönetimi personeli talep açabilir (Mühendisler ve yöneticiler açamaz)
   const canCreate =
-    currentUser.role === 'admin' ||
     currentUser.role === 'sales' ||
-    currentUser.role === 'electrical_design' ||
     currentUser.role === 'project_management';
 
   return (

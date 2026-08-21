@@ -31,14 +31,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const columns: { id: MDTStatus; title: string; color: string }[] = [
-    { id: 'YENI', title: '1. Yeni Talep', color: 'border-slate-300' },
+    { id: 'YENI', title: '1. Yönetici Değerlendirmesi', color: 'border-slate-300' },
     { id: 'TASARIMDA', title: '2. Tasarımda', color: 'border-blue-500' },
     { id: 'MEKANIK_ONAYDA', title: '3. Mekanik Onayda', color: 'border-amber-500' },
     { id: 'MEHMET_ONAYINDA', title: '4. Yönetici Onayında', color: 'border-amber-600' },
     { id: 'UST_ONAYDA', title: '5. Üst Onayda', color: 'border-purple-600' },
-    { id: 'MUSTERI_ONAYINDA', title: '6. Müşteri Onayında', color: 'border-indigo-500' },
-    { id: 'REVIZYON_ISTENDI', title: '7. Revizyon İstendi', color: 'border-rose-500' },
-    { id: 'KAPATILDI', title: '8. Kapatıldı', color: 'border-emerald-600' },
+    { id: 'SATIS_KONTROLUNDE', title: '6. Satış / Talep Sahibi Onayında', color: 'border-sky-500' },
+    { id: 'MUSTERI_ONAYINDA', title: '7. Müşteri Onayında', color: 'border-indigo-500' },
+    { id: 'REVIZYON_ISTENDI', title: '8. Revizyon İstendi', color: 'border-rose-500' },
+    { id: 'KAPATILDI', title: '9. Kapatıldı', color: 'border-emerald-600' },
   ];
 
   // Filter MDTs

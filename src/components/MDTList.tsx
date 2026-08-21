@@ -142,7 +142,7 @@ export const MDTList: React.FC<MDTListProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'YENI':
-        return <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">1. Yeni</span>;
+        return <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">1. Değerlendirme</span>;
       case 'TASARIMDA':
         return <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-semibold">2. Tasarımda</span>;
       case 'MEKANIK_ONAYDA':
@@ -151,12 +151,14 @@ export const MDTList: React.FC<MDTListProps> = ({
         return <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded text-[10px] font-bold">4. Yönetici Onayında</span>;
       case 'UST_ONAYDA':
         return <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded text-[10px] font-semibold">5. Üst Onayda</span>;
+      case 'SATIS_KONTROLUNDE':
+        return <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded text-[10px] font-semibold">6. Satış Onayında</span>;
       case 'MUSTERI_ONAYINDA':
-        return <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-semibold">6. Müşteri Onayında</span>;
+        return <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-semibold">7. Müşteri Onayında</span>;
       case 'REVIZYON_ISTENDI':
-        return <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-[10px] font-semibold">7. Revizyon İstendi</span>;
+        return <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-[10px] font-semibold">8. Revizyon İstendi</span>;
       case 'KAPATILDI':
-        return <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">8. Kapatıldı</span>;
+        return <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-semibold">9. Kapatıldı</span>;
       case 'REDDEDILDI':
         return <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-[10px] font-semibold">Reddedildi</span>;
       case 'IPTAL_EDILDI':
@@ -231,14 +233,15 @@ export const MDTList: React.FC<MDTListProps> = ({
               <option value="WAITING_FOR_ME">⚡ Onayımı Bekleyenler</option>
               <option value="DELAYED">⚠️ Geciken Talepler</option>
               <option value="CLOSED_THIS_MONTH">✅ Bu Ay Kapatılanlar</option>
-              <option value="YENI">1. Yeni Talep</option>
+              <option value="YENI">1. Yönetici Değerlendirmesi</option>
               <option value="TASARIMDA">2. Tasarımda</option>
               <option value="MEKANIK_ONAYDA">3. Mekanik Onayda</option>
               <option value="MEHMET_ONAYINDA">4. Yönetici Onayında</option>
               <option value="UST_ONAYDA">5. Üst Onayda</option>
-              <option value="MUSTERI_ONAYINDA">6. Müşteri Onayında</option>
-              <option value="REVIZYON_ISTENDI">7. Revizyon İstendi</option>
-              <option value="KAPATILDI">8. Kapatıldı</option>
+              <option value="SATIS_KONTROLUNDE">6. Satış Onayında</option>
+              <option value="MUSTERI_ONAYINDA">7. Müşteri Onayında</option>
+              <option value="REVIZYON_ISTENDI">8. Revizyon İstendi</option>
+              <option value="KAPATILDI">9. Kapatıldı</option>
             </select>
 
             {/* Search Input */}

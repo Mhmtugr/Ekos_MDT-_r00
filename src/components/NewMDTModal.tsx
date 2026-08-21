@@ -93,7 +93,7 @@ export const NewMDTModal: React.FC<NewMDTModalProps> = ({
       reason,
       openedById: currentUser.id,
       assignedToId: currentUser.role === 'admin' ? assignedToId : undefined,
-      currentStatus: isRetroactive ? 'KAPATILDI' : 'TASARIMDA',
+      currentStatus: isRetroactive ? 'KAPATILDI' : 'YENI',
       createdAt: isRetroactive ? `${retroYear}-01-15T09:00:00Z` : new Date().toISOString(),
       targetDate: isRetroactive
         ? `${retroYear}-02-15T17:00:00Z`

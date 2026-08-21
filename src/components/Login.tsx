@@ -91,12 +91,18 @@ export const Login: React.FC<LoginProps> = ({ users, onLogin, onGuestLogin }) =>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Şifre</span>
-                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                  Varsayılan: 123
-                </span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Şifre
+                </label>
+                <button
+                  type="button"
+                  onClick={() => alert('Güvenlik ihlali riskine karşı otomatik şifre sıfırlama kapalıdır. Lütfen şifre sıfırlama veya yeni hesap talebi için Sistem Yöneticiniz (IT Departmanı) ile iletişime geçiniz.')}
+                  className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold hover:underline"
+                >
+                  Şifremi Unuttum?
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input

@@ -30,16 +30,17 @@ export interface Project {
 }
 
 export type MDTStatus =
-  | 'YENI'               // 1. Yeni Talep (satış açtı, atanmadı)
+  | 'YENI'               // 1. Yeni Talep (Yönetici Değerlendirmesi Bekliyor)
   | 'TASARIMDA'          // 2. Tasarımda (elektrik tasarım)
   | 'MEKANIK_ONAYDA'     // 3. Mekanik Onayda (Erhan Gürbüz)
   | 'MEHMET_ONAYINDA'    // 4. Yönetici Onayında
   | 'UST_ONAYDA'         // 5. Üst Onayda (Tamer / Yasin)
-  | 'MUSTERI_ONAYINDA'   // 6. Müşteri Onayında
-  | 'REVIZYON_ISTENDI'   // 7. Revizyon İstendi
-  | 'KAPATILDI'          // 8. Kapatıldı
-  | 'REDDEDILDI'         // 9. Reddedildi
-  | 'IPTAL_EDILDI';      // 10. Talep Sahibi Tarafından İptal Edildi
+  | 'SATIS_KONTROLUNDE'  // 6. Satış/Talep Sahibi Kontrolünde
+  | 'MUSTERI_ONAYINDA'   // 7. Müşteri Onayında
+  | 'REVIZYON_ISTENDI'   // 8. Revizyon İstendi
+  | 'KAPATILDI'          // 9. Kapatıldı
+  | 'REDDEDILDI'         // 10. Reddedildi
+  | 'IPTAL_EDILDI';      // 11. Talep Sahibi Tarafından İptal Edildi
 
 export type MDTPriority = 'DUSUK' | 'ORTA' | 'YUKSEK' | 'KRITIK';
 

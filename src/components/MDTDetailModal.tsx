@@ -754,14 +754,16 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
               <button
                 onClick={() => {
                   if (showReasonInput === 'TALEP_IPTAL') handleCancelMDT();
-                  if (showReasonInput === 'MEHMET_ONAY') handleExecuteAction('MUSTERI_ONAYINDA', 'ONAY', 'Mehmet Uğur Onaylandı');
-                  if (showReasonInput === 'MEHMET_REVIZION') handleExecuteAction('REVIZYON_ISTENDI', 'REVIZYON', 'Mehmet Uğur Revizyon İstedi');
+                  if (showReasonInput === 'MEHMET_ONAY') handleExecuteAction('SATIS_KONTROLUNDE', 'ONAY', 'Yönetici Onaylandı');
+                  if (showReasonInput === 'MEHMET_REVIZION') handleExecuteAction('TASARIMDA', 'REVIZYON', 'Yönetici Revizyon İstedi');
                   if (showReasonInput === 'MEKANIK_ONAY') handleExecuteAction('MEHMET_ONAYINDA', 'ONAY', 'Mekanik Onaylandı');
                   if (showReasonInput === 'MEKANIK_REVIZION') handleExecuteAction('TASARIMDA', 'REVIZYON', 'Mekanik Revizyon İstedi');
                   if (showReasonInput === 'UST_ONAY') handleSendToExecutive();
-                  if (showReasonInput === 'UST_EXEC_ONAY') handleExecuteAction('MEHMET_ONAYINDA', 'ONAY', 'Üst Onay Verildi');
+                  if (showReasonInput === 'UST_EXEC_ONAY') handleExecuteAction('SATIS_KONTROLUNDE', 'ONAY', 'Üst Onay Verildi');
                   if (showReasonInput === 'UST_EXEC_RED') handleExecuteAction('REDDEDILDI', 'RED', 'Üst Yönetim Reddetti');
                   if (showReasonInput === 'KAPAT') handleExecuteAction('KAPATILDI', 'ONAY', 'Talep Kapatıldı');
+                  if (showReasonInput === 'MUSTERI_ONAY_SUN') handleExecuteAction('MUSTERI_ONAYINDA', 'ONAY', 'Müşteri Onayına Sunuldu');
+                  if (showReasonInput === 'MUSTERI_REVIZYON_ISTEDI') handleExecuteAction('YENI', 'REVIZYON', 'Müşteri Revizyon İstedi');
                 }}
                 className="px-3 py-1 bg-[#D32F2F] hover:bg-red-700 text-white font-bold text-xs rounded transition"
               >
@@ -803,6 +805,24 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                   <Ban className="w-3.5 h-3.5" />
                   <span>Talebi İptal Et</span>
                 </button>
+              )}
+
+              {/* New Request (YENI) Actions for Mehmet */}
+              {isMehmet && mdt.currentStatus === 'YENI' && (
+                <>
+                  <button
+                    onClick={() => handleExecuteAction('TASARIMDA', 'ONAY', 'Tasarım Süreci Başlatıldı')}
+                    className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded text-xs transition"
+                  >
+                    Tasarım Gerekli (Tasarımcıya İlet)
+                  </button>
+                  <button
+                    onClick={() => handleExecuteAction('SATIS_KONTROLUNDE', 'ONAY', 'Tasarım Gerektirmeden Onaylandı')}
+                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded text-xs transition"
+                  >
+                    Tasarım Gerekmiyor (Doğrudan Satışa İlet)
+                  </button>
+                </>
               )}
 
               {/* Electrical Design Engineers Actions */}
@@ -854,13 +874,13 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                     onClick={() => setShowReasonInput('UST_ONAY')}
                     className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-semibold rounded text-xs transition"
                   >
-                    2. Seviye / Üst Onaya Gönder (Ar-Ge / Genel Müdür)
+                    2. Seviye / Üst Onaya Gönder
                   </button>
                   <button
                     onClick={() => setShowReasonInput('MEHMET_ONAY')}
                     className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded text-xs transition"
                   >
-                    Onayla (Müşteri Onayına Sun)
+                    Onayla (Satış / Talep Sahibine İlet)
                   </button>
                 </>
               )}
@@ -883,14 +903,32 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 </>
               )}
 
-              {/* Project Management Actions */}
-              {(isProjectManager || isMehmet) && mdt.currentStatus === 'MUSTERI_ONAYINDA' && (
+              {/* Creator / PM / Sales Actions when status is SATIS_KONTROLUNDE */}
+              {isCreator && mdt.currentStatus === 'SATIS_KONTROLUNDE' && (
                 <>
                   <button
-                    onClick={handleCreateNewRevision}
+                    onClick={() => setShowReasonInput('MUSTERI_ONAY_SUN')}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded text-xs transition"
+                  >
+                    Müşteri Onayına Sun
+                  </button>
+                  <button
+                    onClick={() => setShowReasonInput('KAPAT')}
+                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded text-xs transition"
+                  >
+                    Müşteri Onayı Gerekmiyor (Talebi Kapat)
+                  </button>
+                </>
+              )}
+
+              {/* Creator / PM / Sales Actions when status is MUSTERI_ONAYINDA */}
+              {isCreator && mdt.currentStatus === 'MUSTERI_ONAYINDA' && (
+                <>
+                  <button
+                    onClick={() => setShowReasonInput('MUSTERI_REVIZYON_ISTEDI')}
                     className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded text-xs transition"
                   >
-                    Müşteri Revizyon İstedi (Yeni Rev. Aç)
+                    Müşteri Revizyon İstedi (Yeniden Değerlendir)
                   </button>
                   <button
                     onClick={() => setShowReasonInput('KAPAT')}
@@ -901,13 +939,13 @@ export const MDTDetailModal: React.FC<MDTDetailModalProps> = ({
                 </>
               )}
 
-              {/* Close Button for Mehmet or PM */}
-              {(isMehmet || isProjectManager) && mdt.currentStatus !== 'KAPATILDI' && mdt.currentStatus !== 'IPTAL_EDILDI' && (
+              {/* Close Button for Creator / Admin */}
+              {(isMehmet || isCreator) && mdt.currentStatus !== 'KAPATILDI' && mdt.currentStatus !== 'IPTAL_EDILDI' && (
                 <button
                   onClick={() => setShowReasonInput('KAPAT')}
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded text-xs transition"
                 >
-                  Talebi Kapat
+                  Talebi Manuel Kapat
                 </button>
               )}
             </div>
